@@ -60,6 +60,22 @@ function apiDetalle(id) {
 /* Operaciones                                                         */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Agrega comentarios, historial y adjuntos al resultado de una operación.
+ *
+ * Antes el frontend hacía una segunda llamada (apiDetalle) para repintar la
+ * pantalla después de cada cambio. Enviando todo de una vez se elimina ese
+ * viaje de ida y vuelta, que era la mitad de la espera percibida.
+ */
+function conDetalle_(resultado) {
+  var id = resultado && resultado.solicitud ? resultado.solicitud.id : null;
+  if (!id) return resultado;
+  resultado.comentarios = comentariosDe_(id);
+  resultado.historial = historialDe_(id);
+  resultado.adjuntos = adjuntosDe_(id);
+  return resultado;
+}
+
 function apiCrearSolicitud(payload) {
   return ejecutar_('apiCrearSolicitud', function () {
     return crearSolicitud_(payload);
@@ -68,13 +84,13 @@ function apiCrearSolicitud(payload) {
 
 function apiCambiarEstado(id, estado, actorNombre, esAdmin, motivo) {
   return ejecutar_('apiCambiarEstado', function () {
-    return cambiarEstado_(texto_(id), estado, actorNombre, esAdmin === true, motivo);
+    return conDetalle_(cambiarEstado_(texto_(id), estado, actorNombre, esAdmin === true, motivo));
   });
 }
 
 function apiAgregarComentario(id, payload) {
   return ejecutar_('apiAgregarComentario', function () {
-    return agregarComentario_(texto_(id), payload);
+    return conDetalle_(agregarComentario_(texto_(id), payload));
   });
 }
 
@@ -82,13 +98,13 @@ function apiAgregarComentario(id, payload) {
 
 function apiReasignar(id, responsableId, actorNombre) {
   return ejecutar_('apiReasignar', function () {
-    return reasignar_(texto_(id), responsableId, actorNombre);
+    return conDetalle_(reasignar_(texto_(id), responsableId, actorNombre));
   });
 }
 
 function apiActualizarSolicitud(id, cambios, actorNombre) {
   return ejecutar_('apiActualizarSolicitud', function () {
-    return actualizarSolicitud_(texto_(id), cambios, actorNombre);
+    return conDetalle_(actualizarSolicitud_(texto_(id), cambios, actorNombre));
   });
 }
 

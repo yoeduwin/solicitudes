@@ -106,6 +106,14 @@ function listarSolicitudes_() {
     .sort(function (a, b) { return (b.created_at || '').localeCompare(a.created_at || ''); });
 }
 
+/** Copia una fila cruda aplicándole los cambios, sin volver a leer el Sheet. */
+function fusionar_(fila, cambios) {
+  var copia = {};
+  Object.keys(fila).forEach(function (k) { copia[k] = fila[k]; });
+  Object.keys(cambios).forEach(function (k) { copia[k] = cambios[k]; });
+  return copia;
+}
+
 /** Fila cruda de una solicitud (incluye _fila). Lanza si no existe. */
 function filaSolicitud_(id) {
   var filas = leerTodo_(HOJAS.SOLICITUDES);
@@ -293,8 +301,8 @@ function cambiarEstado_(id, nuevoEstado, actor, esAdmin, motivo) {
     var detalle = anterior + ' → ' + nuevoEstado + (motivo ? '. Motivo: ' + texto_(motivo, 500) : '');
     agregarHistorial_(id, actor, accion, detalle);
 
-    var actualizado = filaSolicitud_(id);
-    return { solicitud: mapearSolicitud_(actualizado, hoyISO_()), anterior: anterior };
+    // Se arma el resultado con los datos ya en memoria en vez de releer la hoja.
+    return { solicitud: mapearSolicitud_(fusionar_(fila, cambios), hoyISO_()), anterior: anterior };
   });
 
   if (salida.sinCambio) return { solicitud: salida.solicitud, correo_enviado: false, aviso: '' };
@@ -333,14 +341,15 @@ function reasignar_(id, responsableId, actor) {
     if (anterior === nuevo.nombre) {
       return { solicitud: mapearSolicitud_(fila, hoyISO_()), sinCambio: true };
     }
-    actualizarFila_(HOJAS.SOLICITUDES, fila._fila, {
+    var cambios = {
       responsable_nombre: nuevo.nombre,
       responsable_email: nuevo.correo,
       updated_at: ahoraISO_()
-    });
+    };
+    actualizarFila_(HOJAS.SOLICITUDES, fila._fila, cambios);
     agregarHistorial_(id, actor, 'Reasignación',
       (anterior || 'Sin responsable') + ' → ' + nuevo.nombre);
-    return { solicitud: mapearSolicitud_(filaSolicitud_(id), hoyISO_()), anterior: anterior };
+    return { solicitud: mapearSolicitud_(fusionar_(fila, cambios), hoyISO_()), anterior: anterior };
   });
 
   if (salida.sinCambio) return { solicitud: salida.solicitud, correo_enviado: false, aviso: 'La solicitud ya estaba asignada a esa persona.' };
@@ -429,7 +438,7 @@ function actualizarSolicitud_(id, cambios, actor) {
     actualizarFila_(HOJAS.SOLICITUDES, fila._fila, aplicar);
     agregarHistorial_(id, actor, 'Edición', descripcionCambios.join(' · '));
 
-    return { solicitud: mapearSolicitud_(filaSolicitud_(id), hoyISO_()), aviso: '' };
+    return { solicitud: mapearSolicitud_(fusionar_(fila, aplicar), hoyISO_()), aviso: '' };
   });
 }
 
@@ -468,7 +477,7 @@ function agregarComentario_(id, payload) {
         id: comentario.id, fecha: comentario.fecha, autor_nombre: autor.nombre,
         autor_email: autor.correo, comentario: cuerpo, notificar: notificar
       },
-      solicitud: mapearSolicitud_(filaSolicitud_(id), hoyISO_())
+      solicitud: mapearSolicitud_(fusionar_(fila, { updated_at: comentario.fecha }), hoyISO_())
     };
   });
 

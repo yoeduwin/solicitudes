@@ -18,24 +18,33 @@
       <h1 class="text-lg font-semibold leading-tight" id="tituloApp"><?= nombreSistema ?></h1>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2" data-tip-abajo
+      data-tip="Elige tu nombre del directorio. Se usa para firmar lo que crees, comentes o cambies. No es una cuenta ni lleva contraseña.">
       <label class="text-xs text-emerald-200 hidden sm:block" for="selYo">Soy</label>
-      <select id="selYo" class="rounded-md bg-emerald-800 border border-emerald-700 text-sm px-2 py-1.5 max-w-[190px]">
+      <select id="selYo"
+        class="rounded-lg bg-emerald-800 border border-emerald-700 text-sm px-2 py-1.5 max-w-[190px]
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
         <option value="">Selecciona tu nombre…</option>
       </select>
     </div>
 
     <div class="flex items-center gap-2">
-      <button id="btnModo" type="button"
-        class="rounded-md px-3 py-1.5 text-sm font-medium bg-emerald-800 border border-emerald-700 hover:bg-emerald-700">
+      <button id="btnModo" type="button" class="btn-cabecera font-medium" data-tip-abajo
+        data-tip="General: crear, comentar y mover a Pendiente, En proceso o Atendida. Administración agrega reasignar, editar, cerrar y cancelar.">
         Modo: <span id="txtModo">General</span>
       </button>
-      <button id="btnDirectorio" type="button"
-        class="hidden rounded-md px-3 py-1.5 text-sm bg-emerald-800 border border-emerald-700 hover:bg-emerald-700">
+      <button id="btnDirectorio" type="button" class="hidden btn-cabecera" data-tip-abajo
+        data-tip="Alta y edición de personas del directorio: nombre, correo y área.">
         Directorio
       </button>
+      <button id="btnAyuda" type="button" class="btn-cabecera" data-tip-abajo
+        data-tip="Cuándo conviene levantar una solicitud y cuándo no">
+        <span aria-hidden="true">?</span> Ayuda
+      </button>
       <button id="btnNueva" type="button"
-        class="rounded-md px-3 py-1.5 text-sm font-semibold bg-white text-emerald-900 hover:bg-emerald-50">
+        class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold
+               bg-white text-emerald-900 transition hover:bg-emerald-50 active:scale-[.98]
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
         + Nueva
       </button>
     </div>
@@ -46,19 +55,23 @@
 
   <!-- ============================ Indicadores ============================ -->
   <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5" id="kpis">
-    <button data-kpi="abiertas" class="kpi border-slate-200">
+    <button data-kpi="abiertas" class="kpi border-slate-200" data-tip-abajo
+      data-tip="Todo lo que sigue vivo: Pendiente y En proceso. Da clic para filtrar solo eso.">
       <span class="kpi-num text-slate-900" id="kpiAbiertas">0</span>
       <span class="kpi-lbl">Solicitudes abiertas</span>
     </button>
-    <button data-kpi="hoy" class="kpi border-amber-200">
+    <button data-kpi="hoy" class="kpi border-amber-200" data-tip-abajo
+      data-tip="Su fecha límite es hoy y todavía no se atienden.">
       <span class="kpi-num text-amber-600" id="kpiHoy">0</span>
       <span class="kpi-lbl">Vencen hoy</span>
     </button>
-    <button data-kpi="vencidas" class="kpi border-red-200">
+    <button data-kpi="vencidas" class="kpi border-red-200" data-tip-abajo
+      data-tip="La fecha límite ya pasó y siguen sin atenderse. Vencida no es un estado: es una alerta sobre el estado real.">
       <span class="kpi-num text-red-600" id="kpiVencidas">0</span>
       <span class="kpi-lbl">Vencidas</span>
     </button>
-    <button data-kpi="atendidas" class="kpi border-emerald-200">
+    <button data-kpi="atendidas" class="kpi border-emerald-200" data-tip-abajo
+      data-tip="Resueltas por el responsable, en espera de que Administración las cierre.">
       <span class="kpi-num text-emerald-700" id="kpiAtendidas">0</span>
       <span class="kpi-lbl">Atendidas</span>
     </button>
@@ -68,32 +81,50 @@
   <section class="bg-white rounded-lg border border-slate-200 p-3 mb-4">
     <div class="flex flex-wrap gap-2 items-center">
       <input id="fBuscar" type="search" placeholder="Buscar por folio, título, descripción, cliente…"
-        class="flex-1 min-w-[220px] rounded-md border border-slate-300 px-3 py-2 text-sm">
+        data-tip="Busca en folio, título, descripción, cliente, responsable y solicitante a la vez."
+        class="flex-1 min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-sm transition
+               placeholder:text-slate-400 hover:border-slate-400 focus:outline-none
+               focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600">
       <select id="fEstado" class="filtro"><option value="">Todos los estados</option></select>
       <select id="fResponsable" class="filtro"><option value="">Todo responsable</option></select>
       <select id="fSolicitante" class="filtro"><option value="">Todo solicitante</option></select>
       <select id="fCategoria" class="filtro"><option value="">Toda categoría</option></select>
       <select id="fPrioridad" class="filtro"><option value="">Toda prioridad</option></select>
-      <button id="btnLimpiar" type="button"
-        class="text-sm px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-50">Limpiar</button>
+      <button id="btnLimpiar" type="button" data-tip="Quita todos los filtros y la búsqueda"
+        class="text-sm px-3 py-2 rounded-lg border border-slate-300 transition hover:bg-slate-50
+               hover:border-slate-400">Limpiar</button>
     </div>
 
     <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-      <div class="inline-flex rounded-md border border-slate-300 overflow-hidden">
-        <button data-vista="kanban" class="tab-vista">Kanban</button>
-        <button data-vista="lista" class="tab-vista">Lista</button>
+      <div class="inline-flex rounded-lg border border-slate-300 overflow-hidden">
+        <button data-vista="kanban" class="tab-vista"
+          data-tip="Tablero por estado. Útil para ver dónde se está atorando el trabajo.">Kanban</button>
+        <button data-vista="lista" class="tab-vista"
+          data-tip="Tabla ordenada por fecha de creación. Útil para revisar muchas de un vistazo.">Lista</button>
       </div>
-      <div class="inline-flex rounded-md border border-slate-300 overflow-hidden">
-        <button data-alcance="todas" class="tab-alcance">Todas</button>
-        <button data-alcance="asignadas" class="tab-alcance">Asignadas a mí</button>
-        <button data-alcance="mias" class="tab-alcance">Que yo solicité</button>
+      <div class="inline-flex rounded-lg border border-slate-300 overflow-hidden">
+        <button data-alcance="todas" class="tab-alcance"
+          data-tip="Todas las solicitudes de la empresa">Todas</button>
+        <button data-alcance="asignadas" class="tab-alcance"
+          data-tip="Lo que te toca resolver a ti">Asignadas a mí</button>
+        <button data-alcance="mias" class="tab-alcance"
+          data-tip="Lo que tú pediste y estás esperando">Que yo solicité</button>
       </div>
       <span id="contador" class="text-xs text-slate-500 ml-auto"></span>
     </div>
   </section>
 
   <!-- ============================ Vistas ============================ -->
-  <div id="cargando" class="text-center py-16 text-slate-500 text-sm">Cargando solicitudes…</div>
+  <div id="cargando" class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div class="columna"><div class="esqueleto h-4 w-24 mb-3"></div>
+      <div class="space-y-2"><div class="esqueleto h-24"></div><div class="esqueleto h-24"></div></div></div>
+    <div class="columna"><div class="esqueleto h-4 w-24 mb-3"></div>
+      <div class="space-y-2"><div class="esqueleto h-24"></div></div></div>
+    <div class="columna hidden md:block"><div class="esqueleto h-4 w-24 mb-3"></div>
+      <div class="space-y-2"><div class="esqueleto h-24"></div><div class="esqueleto h-24"></div></div></div>
+    <div class="columna hidden xl:block"><div class="esqueleto h-4 w-24 mb-3"></div>
+      <div class="space-y-2"><div class="esqueleto h-24"></div></div></div>
+  </div>
   <section id="vistaKanban" class="hidden grid gap-3 md:grid-cols-2 xl:grid-cols-4"></section>
   <section id="vistaLista" class="hidden bg-white rounded-lg border border-slate-200 overflow-x-auto"></section>
 </main>
@@ -105,30 +136,40 @@
       <h2 class="font-semibold">Nueva solicitud</h2>
       <button type="button" class="cerrar-modal text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
     </div>
+    <div class="px-5 pt-4">
+      <div class="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-sm text-amber-900">
+        <strong>Antes de crearla:</strong> si esto se resuelve con un mensaje en los próximos
+        minutos, mándalo y ya. Levanta la solicitud cuando cruce de un área a otra, tenga fecha
+        y sí importe que quede registrada.
+        <button type="button" id="btnAyudaForm"
+          class="underline font-medium hover:no-underline">Ver la guía</button>
+      </div>
+    </div>
     <form id="formNueva" class="modal-body grid gap-3 sm:grid-cols-2">
       <label class="campo">Solicitante *
         <select name="solicitante_id" required class="entrada"></select>
       </label>
-      <label class="campo">Responsable *
+      <label class="campo" data-tip="Quien debe resolverla. Recibe un correo en cuanto la crees.">Responsable *
         <select name="responsable_id" required class="entrada"></select>
       </label>
       <label class="campo">Categoría *
         <select name="categoria" required class="entrada"></select>
       </label>
-      <label class="campo">Prioridad *
+      <label class="campo" data-tip="Urgente solo cuando de verdad desplaza otro trabajo. Si todo es urgente, nada lo es.">Prioridad *
         <select name="prioridad" required class="entrada"></select>
       </label>
-      <label class="campo sm:col-span-2">Título *
-        <input name="titulo" required maxlength="200" class="entrada" placeholder="Qué se necesita, en una línea">
+      <label class="campo sm:col-span-2" data-tip="Que se entienda sin abrir el detalle. Mejor 'Cotización de EPP para planta Norte' que 'Apoyo'.">Título *
+        <input name="titulo" required maxlength="200" class="entrada"
+          placeholder="El entregable concreto, en una línea">
       </label>
       <label class="campo sm:col-span-2">Descripción *
         <textarea name="descripcion" required rows="4" maxlength="5000" class="entrada"
-          placeholder="Detalle de lo que se solicita, contexto y entregable esperado"></textarea>
+          placeholder="Qué necesitas, para qué, y con qué se da por terminada. Incluye datos que eviten el ida y vuelta."></textarea>
       </label>
-      <label class="campo">Cliente / proyecto <span class="text-slate-400">(opcional)</span>
+      <label class="campo" data-tip="Opcional. Llénalo si la solicitud pertenece a un cliente o proyecto: facilita buscarla después.">Cliente / proyecto <span class="text-slate-400">(opcional)</span>
         <input name="cliente_proyecto" maxlength="200" class="entrada">
       </label>
-      <label class="campo">Fecha límite *
+      <label class="campo" data-tip="La fecha en que realmente la necesitas. Después de ese día la solicitud se marca como vencida.">Fecha límite *
         <input name="fecha_limite" type="date" required class="entrada">
       </label>
       <div class="campo sm:col-span-2">
@@ -185,6 +226,87 @@
       </form>
       <div id="estadoDirectorio" class="text-sm text-slate-500 mb-2"></div>
       <div class="overflow-x-auto"><table class="w-full text-sm" id="tablaUsuarios"></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ Modal: ayuda / guía de uso ============================ -->
+<div id="modalAyuda" class="modal hidden">
+  <div class="modal-caja max-w-3xl">
+    <div class="modal-head">
+      <div>
+        <h2 class="font-semibold">Cómo usar este sistema</h2>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Existe para que lo que se pide entre áreas no se olvide. Nada más.</p>
+      </div>
+      <button type="button" class="cerrar-modal text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+    </div>
+    <div class="modal-body space-y-5">
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="ayuda-si">
+          <h3 class="font-semibold text-emerald-900 text-sm">Levanta una solicitud cuando…</h3>
+          <ul class="ayuda-lista">
+            <li>Le pides algo a <strong>otra área</strong> y esa persona tiene que hacer algo.</li>
+            <li>Tiene una <strong>fecha</strong> en que se necesita.</li>
+            <li>Si se olvida, <strong>hay consecuencia</strong>: un cliente, una autoridad, un pago, una entrega.</li>
+            <li>Va a tomar <strong>más de un día</strong> o pasa por varias manos.</li>
+            <li>Ya lo pediste por WhatsApp y <strong>lleva días sin moverse</strong>.</li>
+            <li>Quieres que quede <strong>rastro</strong> de quién pidió qué y cuándo.</li>
+          </ul>
+        </div>
+
+        <div class="ayuda-no">
+          <h3 class="font-semibold text-slate-700 text-sm">No la levantes cuando…</h3>
+          <ul class="ayuda-lista">
+            <li>Se resuelve <strong>en cinco minutos</strong> con un mensaje o parándote en el escritorio.</li>
+            <li>Es una <strong>pregunta de sí o no</strong>.</li>
+            <li>Es <strong>tu propia tarea</strong>: eso va en tu lista, no aquí.</li>
+            <li>Es una <strong>emergencia ahora</strong>: primero llama. Regístrala después, si va a tomar días.</li>
+            <li>Todavía <strong>no sabes qué pides</strong> ni para cuándo. Defínelo primero.</li>
+            <li>Solo quieres <strong>saber cómo va</strong> algo: búscalo y comenta ahí, no abras otra.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="font-semibold text-sm text-slate-800">Los cinco estados</h3>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+          <div class="flex gap-2.5 text-sm"><span class="etq bg-slate-100 text-slate-700 mt-0.5">Pendiente</span>
+            <span class="text-slate-600">Nace así. Nadie la ha tomado todavía.</span></div>
+          <div class="flex gap-2.5 text-sm"><span class="etq bg-blue-100 text-blue-700 mt-0.5">En proceso</span>
+            <span class="text-slate-600">La marca el responsable cuando empieza. Avisa que no está olvidada.</span></div>
+          <div class="flex gap-2.5 text-sm"><span class="etq bg-emerald-100 text-emerald-700 mt-0.5">Atendida</span>
+            <span class="text-slate-600">Ya se hizo. El solicitante recibe correo para que lo confirme.</span></div>
+          <div class="flex gap-2.5 text-sm"><span class="etq bg-slate-200 text-slate-600 mt-0.5">Cerrada</span>
+            <span class="text-slate-600">Administración da el visto bueno. Fin del asunto.</span></div>
+          <div class="flex gap-2.5 text-sm"><span class="etq bg-slate-100 text-slate-400 line-through mt-0.5">Cancelada</span>
+            <span class="text-slate-600">Ya no se necesita o se resolvió por otro lado.</span></div>
+          <div class="flex gap-2.5 text-sm"><span class="etq bg-red-600 text-white mt-0.5">Vencida</span>
+            <span class="text-slate-600">No es un estado: es una alerta. La fecha pasó y sigue sin atenderse.</span></div>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="font-semibold text-sm text-slate-800">Reglas para que esto funcione</h3>
+        <ul class="ayuda-lista">
+          <li><strong>Un asunto, una solicitud.</strong> Si son tres cosas distintas, son tres.</li>
+          <li><strong>Fecha límite real.</strong> Poner "para ayer" en todo hace que el tablero deje de significar algo.</li>
+          <li><strong>Si cambia lo que pediste</strong>, coméntalo en la misma solicitud. No abras otra.</li>
+          <li><strong>Marca "En proceso" al empezar.</strong> Cuesta dos segundos y le ahorra a quien pidió tener que preguntar.</li>
+          <li><strong>Comenta antes de que te pregunten.</strong> Una línea de avance evita tres mensajes.</li>
+          <li><strong>La casilla "Notificar por correo"</strong> es para cuando de verdad hace falta que se enteren.</li>
+        </ul>
+      </div>
+
+      <div class="rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm text-slate-600">
+        <strong class="text-slate-800">Si dudas:</strong> pregúntate qué pasa si nadie lo hace en dos
+        semanas. Si la respuesta es "un problema", va aquí. Si es "nada", no lo levantes.
+      </div>
+
+      <div class="flex justify-end pt-1">
+        <button type="button" class="cerrar-modal btn-primario">Entendido</button>
+      </div>
     </div>
   </div>
 </div>

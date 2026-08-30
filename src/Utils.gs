@@ -61,6 +61,26 @@ var CONFIG_DEFAULT = [
 /* Acceso al Spreadsheet                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Caché de lectura válido solo durante la ejecución actual del script.
+ *
+ * Una petición típica leía CONFIG tres o cuatro veces (categorías, límites de
+ * adjuntos, interruptor de notificaciones) y USUARIOS dos. Cada lectura es una
+ * llamada al servicio de Sheets, que es lo caro. Aquí se lee una vez y se
+ * reutiliza; cualquier escritura invalida la entrada correspondiente.
+ */
+var CACHE_ = {};
+
+function cacheLeer_(nombre, fn) {
+  if (!(nombre in CACHE_)) CACHE_[nombre] = fn();
+  return CACHE_[nombre];
+}
+
+function cacheOlvidar_(nombre) {
+  if (nombre) delete CACHE_[nombre];
+  else CACHE_ = {};
+}
+
 function libro_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
@@ -146,6 +166,7 @@ function agregarFila_(nombre, obj) {
     return (v === undefined || v === null) ? '' : v;
   });
   sh.appendRow(fila);
+  cacheOlvidar_();
   return obj;
 }
 
@@ -158,6 +179,7 @@ function actualizarFila_(nombre, numeroFila, cambios) {
     var v = cambios[k];
     sh.getRange(numeroFila, idx[k] + 1).setValue(v === undefined || v === null ? '' : v);
   });
+  cacheOlvidar_();
 }
 
 /* ------------------------------------------------------------------ */

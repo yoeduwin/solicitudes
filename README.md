@@ -129,6 +129,19 @@ El cambio de modo es por confianza; en esta versión no hay autenticación admin
 Aun así, el backend rechaza cerrar o cancelar cuando la llamada no viene en modo
 Administración, y valida todos los datos por su cuenta.
 
+### Guía de uso dentro de la app
+
+El botón **Ayuda** de la barra superior abre la guía de *cuándo levantar una solicitud y
+cuándo no*, los cinco estados explicados y las reglas de convivencia. Se abre sola la
+primera vez que alguien entra desde ese navegador.
+
+El formulario de **Nueva solicitud** repite el criterio en corto, en el momento en que
+importa: si se resuelve con un mensaje en los próximos minutos, no hace falta levantarla.
+
+Los controles principales tienen **tooltips** al pasar el cursor (en pantallas táctiles se
+desactivan, donde estorbarían). Para cambiar los textos, busca `data-tip="…"` en
+`index.html` y en la función `pintarDetalle` de `scripts.html`.
+
 ### Estados y vencimiento
 
 `Pendiente` · `En proceso` · `Atendida` · `Cerrada` · `Cancelada`
@@ -222,6 +235,24 @@ Administración, notificaciones, historial y la garantía de que un fallo de cor
 no pierde la solicitud.
 
 ---
+
+## Rendimiento
+
+Apps Script tarda 1–2 s en arrancar en frío; eso no se puede evitar. Lo que sí se hizo:
+
+- **Un solo viaje por operación.** Cambiar estado, comentar, reasignar o editar devuelven
+  ya la solicitud con sus comentarios, historial y adjuntos (`conDetalle_` en `Code.gs`),
+  en vez de encadenar una segunda llamada a `apiDetalle`.
+- **Caché de lectura por ejecución** (`cacheLeer_` en `Utils.gs`). Antes, una sola petición
+  releía la hoja `CONFIG` tres o cuatro veces y `USUARIOS` dos.
+- **Sin relecturas tras escribir.** Las operaciones arman la respuesta con los datos que ya
+  tienen en memoria (`fusionar_`) en lugar de volver a leer la hoja.
+- **Esqueletos de carga** en vez de un texto "Cargando…", y la solicitud abre mostrando de
+  inmediato lo que ya está en memoria mientras llegan historial y comentarios.
+
+El envío de correo **sigue siendo síncrono**: al crear una solicitud o marcarla como
+Atendida, la respuesta espera a que MailApp termine. Se mantuvo así a propósito, porque es
+lo que permite registrar en `HISTORIAL` si el correo falló.
 
 ## Estructura
 

@@ -70,8 +70,8 @@ var TEMPORIZADOR_TOAST = null;
 function aviso(mensaje, tipo) {
   var el = $('#toast');
   var fondo = tipo === 'error' ? 'bg-red-700' : (tipo === 'trabajo' ? 'bg-slate-700' : 'bg-emerald-800');
-  el.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-md text-sm ' +
-                 'text-white shadow-lg max-w-[90vw] ' + fondo;
+  el.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg text-sm ' +
+                 'text-white shadow-xl max-w-[90vw] flex items-center gap-2 ' + fondo;
   el.textContent = mensaje;
   clearTimeout(TEMPORIZADOR_TOAST);
   if (tipo !== 'trabajo') {
@@ -156,9 +156,12 @@ function cargarInicio() {
     restaurarPreferencias();
     $('#cargando').classList.add('hidden');
     render();
+    mostrarAyudaLaPrimeraVez();
   }).catch(function (e) {
-    $('#cargando').innerHTML = '<div class="text-red-700">No se pudo cargar la información: ' +
-      esc(e.message) + '</div>';
+    $('#cargando').className = 'text-center py-16';
+    $('#cargando').innerHTML =
+      '<p class="text-red-700 text-sm">No se pudo cargar la información: ' + esc(e.message) + '</p>' +
+      '<button onclick="location.reload()" class="btn-secundario mt-3">Reintentar</button>';
   });
 }
 
@@ -226,6 +229,8 @@ function conectarEventos() {
 
   $('#btnNueva').addEventListener('click', abrirNueva);
   $('#btnDirectorio').addEventListener('click', abrirDirectorio);
+  $('#btnAyuda').addEventListener('click', abrirAyuda);
+  $('#btnAyudaForm').addEventListener('click', abrirAyuda);
   $('#btnLimpiar').addEventListener('click', function () {
     ['#fBuscar', '#fEstado', '#fResponsable', '#fSolicitante', '#fCategoria', '#fPrioridad']
       .forEach(function (s) { $(s).value = ''; });
@@ -515,16 +520,27 @@ function cambiarEstado(id, estado) {
     motivo = prompt('Motivo de la cancelación (opcional):') || '';
   }
 
+  // La tarjeta NO se mueve todavía: se atenúa para indicar que está guardando y
+  // solo cambia de columna cuando el backend confirma.
+  marcarGuardando(id, true);
   aviso('Guardando…', 'trabajo');
+
   llamar('apiCambiarEstado', id, estado, actor(), APP.admin, motivo).then(function (r) {
     refrescarEnMemoria(r.solicitud);
-    if (APP.detalleId === id) pintarDetalle(null, id);
+    // La respuesta ya trae comentarios, historial y adjuntos: no hace falta otra llamada.
+    if (APP.detalleId === id) pintarDetalle(r, id);
     if (r.aviso) aviso(r.aviso, 'error');
-    else aviso('Estado actualizado a ' + estado + (r.correo_enviado ? '. Correo enviado.' : '.'));
+    else aviso('Estado actualizado a ' + estado + (r.correo_enviado ? ' · correo enviado' : ''));
   }).catch(function (e) {
     aviso('No se pudo guardar: ' + e.message, 'error');
-    render(); // deshace cualquier expectativa visual del arrastre
+    render(); // devuelve la tarjeta a su columna real
   });
+}
+
+/** Atenúa una tarjeta mientras se espera la confirmación del servidor. */
+function marcarGuardando(id, activo) {
+  var el = document.querySelector('.tarjeta[data-id="' + id + '"]');
+  if (el) el.classList.toggle('guardando', activo !== false);
 }
 
 /* ------------------------------------------------------------------ */
@@ -622,8 +638,32 @@ function enviarNueva(ev) {
 function abrirDetalle(id) {
   APP.detalleId = id;
   $('#modalDetalle').classList.remove('hidden');
-  $('#detCuerpo').innerHTML = '<div class="text-sm text-slate-500 py-8 text-center">Cargando…</div>';
+  var s = APP.solicitudes.filter(function (x) { return x.id === id; })[0];
+  // Lo que ya está en memoria se muestra de inmediato; solo el historial,
+  // los comentarios y los adjuntos esperan al servidor.
+  $('#detFolio').textContent = s ? s.folio + ' · ' + s.categoria : '—';
+  $('#detTitulo').textContent = s ? s.titulo : 'Solicitud';
+  $('#detCuerpo').innerHTML =
+    '<div class="space-y-2.5">' +
+      '<div class="esqueleto h-4 w-2/3"></div><div class="esqueleto h-4 w-1/2"></div>' +
+      '<div class="esqueleto h-20 w-full"></div><div class="esqueleto h-4 w-1/3"></div>' +
+      '<div class="esqueleto h-16 w-full"></div>' +
+    '</div>';
   pintarDetalle(null, id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Ayuda                                                               */
+/* ------------------------------------------------------------------ */
+
+function abrirAyuda() {
+  $('#modalAyuda').classList.remove('hidden');
+  try { localStorage.setItem('sol_ayuda_vista', '1'); } catch (e) { /* sin almacenamiento */ }
+}
+
+/** La guía se abre sola la primera vez que alguien usa el sistema en ese navegador. */
+function mostrarAyudaLaPrimeraVez() {
+  if (leerPreferencia('sol_ayuda_vista') !== '1') abrirAyuda();
 }
 
 function pintarDetalle(datos, id) {
@@ -694,8 +734,10 @@ function pintarDetalle(datos, id) {
       '<div class="flex flex-wrap gap-2 items-center">' +
         '<select id="detReasignar" class="filtro">' + opciones(APP.usuarios, '', 'Reasignar a…') + '</select>' +
         '<button id="btnReasignar" type="button" class="btn-secundario">Reasignar</button>' +
-        '<button id="btnCerrar" type="button" class="btn-secundario">Cerrar solicitud</button>' +
-        '<button id="btnCancelar" type="button" class="btn-secundario text-red-700">Cancelar solicitud</button>' +
+        '<button id="btnCerrar" type="button" class="btn-secundario" ' +
+          'data-tip="Visto bueno final: el asunto queda concluido.">Cerrar solicitud</button>' +
+        '<button id="btnCancelar" type="button" class="btn-secundario text-red-700" ' +
+          'data-tip="Ya no se necesita o se resolvió por otra vía. Se conserva el registro.">Cancelar solicitud</button>' +
         '<button id="btnEditar" type="button" class="btn-secundario">Editar datos</button>' +
       '</div>' +
       '<div id="cajaEdicion" class="hidden mt-3 grid gap-2 sm:grid-cols-2 bg-slate-50 border border-slate-200 rounded-md p-3">' +
@@ -726,7 +768,9 @@ function pintarDetalle(datos, id) {
     '</div>' +
 
     '<div class="mt-4 pt-4 border-t border-slate-200">' +
-      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Cambiar estado</div>' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-2" ' +
+        'data-tip="También puedes arrastrar la tarjeta en el Kanban. El cambio se guarda hasta que el servidor confirma.">' +
+        'Cambiar estado</div>' +
       '<div class="flex flex-wrap gap-2 items-center">' +
         '<select id="detEstado" class="filtro">' +
           estadosDisponibles.map(function (e) {
@@ -744,8 +788,10 @@ function pintarDetalle(datos, id) {
       '<div class="space-y-2 mb-3">' + comentariosHtml + '</div>' +
       '<textarea id="txtComentario" rows="3" class="entrada" placeholder="Escribe un comentario…"></textarea>' +
       '<div class="flex flex-wrap items-center gap-3 mt-2">' +
-        '<label class="flex items-center gap-2 text-sm">' +
-          '<input id="chkNotificar" type="checkbox" class="rounded border-slate-300"> Notificar por correo</label>' +
+        '<label class="flex items-center gap-2 text-sm" ' +
+          'data-tip="Solo si marcas esto se manda correo. Sin marcar, el comentario queda registrado en silencio.">' +
+          '<input id="chkNotificar" type="checkbox" class="rounded border-slate-300 ' +
+          'text-emerald-700 focus:ring-emerald-600"> Notificar por correo</label>' +
         '<button id="btnComentar" type="button" class="btn-primario">Agregar comentario</button>' +
       '</div>' +
     '</div>' +
@@ -774,9 +820,10 @@ function conectarDetalle(s) {
       autor_id: APP.yo.id, comentario: texto, notificar: $('#chkNotificar').checked
     }).then(function (r) {
       refrescarEnMemoria(r.solicitud);
-      pintarDetalle(null, s.id);
+      pintarDetalle(r, s.id);
+      $('#txtComentario').value = '';
       if (r.aviso) aviso(r.aviso, 'error');
-      else aviso('Comentario agregado' + (r.correo_enviado ? '. Correo enviado.' : '.'));
+      else aviso('Comentario agregado' + (r.correo_enviado ? ' · correo enviado' : ''));
     }).catch(function (e) {
       aviso('No se pudo guardar: ' + e.message, 'error');
     }).then(function () { boton.disabled = false; });
@@ -790,10 +837,10 @@ function conectarDetalle(s) {
     aviso('Guardando…', 'trabajo');
     llamar('apiReasignar', s.id, destino, actor()).then(function (r) {
       refrescarEnMemoria(r.solicitud);
-      pintarDetalle(null, s.id);
+      pintarDetalle(r, s.id);
       if (r.aviso) aviso(r.aviso, 'error');
       else aviso('Reasignada a ' + r.solicitud.responsable_nombre +
-        (r.correo_enviado ? '. Correo enviado.' : '.'));
+        (r.correo_enviado ? ' · correo enviado' : ''));
     }).catch(function (e) { aviso('No se pudo reasignar: ' + e.message, 'error'); });
   });
 
@@ -818,7 +865,7 @@ function conectarDetalle(s) {
     aviso('Guardando…', 'trabajo');
     llamar('apiActualizarSolicitud', s.id, cambios, actor()).then(function (r) {
       refrescarEnMemoria(r.solicitud);
-      pintarDetalle(null, s.id);
+      pintarDetalle(r, s.id);
       aviso(r.aviso || 'Cambios guardados.');
     }).catch(function (e) { aviso('No se pudo guardar: ' + e.message, 'error'); });
   });

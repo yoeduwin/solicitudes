@@ -2,16 +2,18 @@
  * Config.gs — Lectura/escritura de la hoja CONFIG y creación inicial del modelo de datos.
  */
 
-/** Devuelve la configuración como objeto {clave: valor}. */
+/** Devuelve la configuración como objeto {clave: valor}. Cacheada por ejecución. */
 function leerConfig_() {
-  var filas = leerTodo_(HOJAS.CONFIG);
-  var cfg = {};
-  CONFIG_DEFAULT.forEach(function (d) { cfg[d[0]] = d[1]; });
-  filas.forEach(function (f) {
-    var k = texto_(f.clave);
-    if (k) cfg[k] = texto_(f.valor);
+  return cacheLeer_('config', function () {
+    var filas = leerTodo_(HOJAS.CONFIG);
+    var cfg = {};
+    CONFIG_DEFAULT.forEach(function (d) { cfg[d[0]] = d[1]; });
+    filas.forEach(function (f) {
+      var k = texto_(f.clave);
+      if (k) cfg[k] = texto_(f.valor);
+    });
+    return cfg;
   });
-  return cfg;
 }
 
 /** Escribe (o crea) una clave de configuración. */

@@ -26,7 +26,8 @@ function esVerdadero_(v) {
 
 /** Busca una persona por id; si no hay id, por nombre exacto. */
 function buscarUsuario_(id, nombre) {
-  var todos = listarUsuarios_(true);
+  // Cacheado: crear una solicitud busca dos personas y antes releía la hoja dos veces.
+  var todos = cacheLeer_('usuarios', function () { return listarUsuarios_(true); });
   var i;
   if (id) {
     for (i = 0; i < todos.length; i++) if (todos[i].id === String(id)) return todos[i];
