@@ -27,6 +27,10 @@ function include(nombre) {
 /** Catálogos + todas las solicitudes en una sola llamada. */
 function apiInicio() {
   return ejecutar_('apiInicio', function () {
+    // La Web App puede admitir cualquier cuenta Google autenticada para no depender
+    // de un único dominio. Por eso toda lectura de datos exige además que el correo
+    // de la sesión exista y esté activo en el directorio interno.
+    var yo = exigirUsuarioActual_();
     var cfg = leerConfig_();
     return {
       nombre_sistema: texto_(cfg.nombre_sistema) || 'Solicitudes Internas',
@@ -39,20 +43,21 @@ function apiInicio() {
       max_mb_archivo: Math.round(limiteBytesArchivo_() / 1048576),
       hoy: hoyISO_(),
       solicitudes: listarSolicitudes_(),
-      // Identidad de quien entró, detectada por el correo de su cuenta de Google.
-      sesion: { correo: texto_(Session.getActiveUser().getEmail()), usuario: usuarioActual_() }
+      sesion: { correo: yo.correo, usuario: yo }
     };
   });
 }
 
 function apiListarSolicitudes() {
   return ejecutar_('apiListarSolicitudes', function () {
+    exigirUsuarioActual_();
     return { solicitudes: listarSolicitudes_(), hoy: hoyISO_() };
   });
 }
 
 function apiDetalle(id) {
   return ejecutar_('apiDetalle', function () {
+    exigirUsuarioActual_();
     if (!texto_(id)) throw new Error('Falta el identificador de la solicitud.');
     return detalleSolicitud_(texto_(id));
   });
