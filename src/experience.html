@@ -1,0 +1,520 @@
+<style>
+  .ex-banner { border-radius:.6rem; padding:.75rem .9rem; font-size:.875rem; margin-bottom:.75rem; }
+  .ex-espera { background:#f5f3ff; border:1px solid #ddd6fe; color:#5b21b6; }
+  .ex-acuerdo { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+  .ex-confirmar { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
+  .ex-privada { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; padding:.18rem .5rem; background:#f1f5f9; color:#475569; font-size:.7rem; font-weight:600; }
+  .ex-coordinar { margin-top:.75rem; border:1px solid #e2e8f0; border-radius:.6rem; background:#fff; }
+  .ex-coordinar summary { cursor:pointer; padding:.7rem .85rem; font-size:.8rem; font-weight:600; color:#475569; }
+  .ex-coordinar-body { padding:0 .85rem .85rem; display:grid; gap:.75rem; }
+  .ex-linea { display:grid; gap:.45rem; }
+  .ex-linea-2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.5rem; }
+  .ex-ayuda { background:#f8fafc; border:1px solid #e2e8f0; border-radius:.6rem; padding:.8rem; font-size:.8rem; color:#64748b; }
+  @media (max-width:640px) { .ex-linea-2 { grid-template-columns:1fr; } }
+</style>
+
+<script>
+/* =========================================================================
+ * experience.html — Mejoras de Employee Experience.
+ * Se carga después de scripts.html y extiende el frontend existente.
+ * ========================================================================= */
+
+(function () {
+  var EX_UI_PREPARADA = false;
+  var pintarDetalleBase = pintarDetalle;
+  var abrirNuevaBase = abrirNueva;
+
+  COLUMNAS = ['Pendiente', 'En proceso', 'En espera', 'Atendida', 'Cerrada'];
+  COLOR_ESTADO['En espera'] = 'bg-violet-100 text-violet-700';
+
+  function esMismoCorreo(a, b) {
+    return String(a || '').toLowerCase() && String(a || '').toLowerCase() === String(b || '').toLowerCase();
+  }
+
+  function soySolicitante(s) {
+    return !!(APP.yo && esMismoCorreo(s.solicitante_email, APP.yo.correo));
+  }
+
+  function soyResponsable(s) {
+    return !!(APP.yo && esMismoCorreo(s.responsable_email, APP.yo.correo));
+  }
+
+  function soyParte(s) {
+    return !!(APP.admin || soySolicitante(s) || soyResponsable(s));
+  }
+
+  function prepararExperienciaUI() {
+    if (EX_UI_PREPARADA) return;
+    EX_UI_PREPARADA = true;
+
+    var f = $('#formNueva');
+    if (f && f.prioridad) {
+      var lblPrioridad = f.prioridad.closest('label');
+      if (lblPrioridad) {
+        lblPrioridad.dataset.tip = 'Urgente se usa cuando el impacto realmente requiere desplazar otras actividades.';
+        var urgente = document.createElement('label');
+        urgente.id = 'campoJustificacionUrgente';
+        urgente.className = 'campo sm:col-span-2 hidden';
+        urgente.innerHTML = '¿Por qué requiere atención urgente? *' +
+          '<input name="justificacion_urgente" maxlength="500" class="entrada" ' +
+          'placeholder="Impacto concreto que justifica desplazar otras actividades">';
+        lblPrioridad.insertAdjacentElement('afterend', urgente);
+        f.prioridad.addEventListener('change', actualizarCampoUrgente);
+      }
+
+      var adjuntos = $('#inpArchivos');
+      var bloqueAdjuntos = adjuntos ? adjuntos.closest('.campo') : null;
+      if (bloqueAdjuntos) {
+        var privada = document.createElement('label');
+        privada.className = 'sm:col-span-2 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700';
+        privada.innerHTML = '<input name="privada" type="checkbox" class="mt-0.5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">' +
+          '<span><strong>Solicitud privada</strong><br><span class="text-xs text-slate-500">' +
+          'Solo la ven solicitante, responsable y Administración. Úsala cuando el contenido sea sensible.</span></span>';
+        bloqueAdjuntos.insertAdjacentElement('beforebegin', privada);
+      }
+    }
+
+    var botonesAlcance = $$('[data-alcance]');
+    var barraAlcance = botonesAlcance.length ? botonesAlcance[0].parentElement : null;
+    if (barraAlcance) {
+      var asignadas = $('[data-alcance="asignadas"]');
+      var mias = $('[data-alcance="mias"]');
+      var todas = $('[data-alcance="todas"]');
+      if (asignadas) { asignadas.textContent = 'Mi trabajo'; asignadas.dataset.tip = 'Lo que está a tu cargo'; barraAlcance.appendChild(asignadas); }
+      if (mias) { mias.textContent = 'Lo que solicité'; mias.dataset.tip = 'Compromisos que pediste y estás esperando'; barraAlcance.appendChild(mias); }
+      if (todas) { todas.textContent = 'Todas'; barraAlcance.appendChild(todas); }
+    }
+
+    var kanban = $('#vistaKanban');
+    if (kanban) kanban.className = 'hidden grid gap-3 md:grid-cols-2 xl:grid-cols-5';
+
+    var ayuda = $('#modalAyuda');
+    if (ayuda) {
+      var intro = ayuda.querySelector('.modal-head p');
+      if (intro) intro.textContent = 'Existe para convertir solicitudes entre áreas en compromisos visibles y fáciles de coordinar.';
+
+      ayuda.querySelectorAll('li').forEach(function (li) {
+        var t = li.textContent || '';
+        if (t.indexOf('Marca "En proceso" al empezar') !== -1) {
+          li.innerHTML = '<strong>Marca "En proceso" al empezar.</strong> Así quien solicitó sabe que ya está siendo atendida.';
+        }
+        if (t.indexOf('Comenta antes de que te pregunten') !== -1) {
+          li.innerHTML = '<strong>Si surge un cambio o bloqueo</strong>, registra un comentario para mantener alineadas a las personas involucradas.';
+        }
+      });
+
+      var hEstados = Array.prototype.slice.call(ayuda.querySelectorAll('h3')).filter(function (h) {
+        return (h.textContent || '').indexOf('Los cinco estados') !== -1;
+      })[0];
+      if (hEstados) {
+        hEstados.textContent = 'Estados de una solicitud';
+        var grid = hEstados.nextElementSibling;
+        if (grid && !$('#exAyudaEspera')) {
+          var div = document.createElement('div');
+          div.id = 'exAyudaEspera';
+          div.className = 'flex gap-2.5 text-sm';
+          div.innerHTML = '<span class="etq bg-violet-100 text-violet-700 mt-0.5">En espera</span>' +
+            '<span class="text-slate-600">Hay un bloqueo identificado. Se registra de quién o de qué depende para no confundir espera con incumplimiento.</span>';
+          grid.insertBefore(div, grid.lastElementChild);
+        }
+      }
+
+      var cuerpo = ayuda.querySelector('.modal-body');
+      if (cuerpo && !$('#exAyudaPrivacidad')) {
+        var nota = document.createElement('div');
+        nota.id = 'exAyudaPrivacidad';
+        nota.className = 'ex-ayuda';
+        nota.innerHTML = '<strong class="text-slate-700">Privacidad:</strong> si la solicitud contiene información sensible, ' +
+          'márcala como privada. No hace falta ocultar las solicitudes operativas normales.';
+        var ultimo = cuerpo.querySelector('.flex.justify-end');
+        if (ultimo) cuerpo.insertBefore(nota, ultimo); else cuerpo.appendChild(nota);
+      }
+    }
+
+    actualizarCampoUrgente();
+  }
+
+  function actualizarCampoUrgente() {
+    var f = $('#formNueva');
+    var campo = $('#campoJustificacionUrgente');
+    if (!f || !campo || !f.prioridad) return;
+    var urgente = f.prioridad.value === 'Urgente';
+    campo.classList.toggle('hidden', !urgente);
+    var input = campo.querySelector('input');
+    if (input) input.required = urgente;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Inicio centrado en "Mi trabajo"                                  */
+  /* ---------------------------------------------------------------- */
+
+  cargarInicio = function () {
+    prepararExperienciaUI();
+    llamar('apiInicio').then(function (d) {
+      APP.usuarios = d.usuarios || [];
+      APP.usuariosTodos = APP.usuarios.slice();
+      APP.categorias = d.categorias || [];
+      APP.estados = d.estados || [];
+      APP.estadosAdmin = d.estados_admin || [];
+      APP.prioridades = d.prioridades || [];
+      APP.solicitudes = d.solicitudes || [];
+      APP.hoy = d.hoy;
+      APP.maxArchivos = d.max_archivos || 5;
+      APP.maxMb = d.max_mb_archivo || 5;
+      if (d.nombre_sistema) $('#tituloApp').textContent = d.nombre_sistema;
+      $('#ayudaAdjuntos').textContent = '(PDF, JPG o PNG · máx. ' + APP.maxArchivos +
+        ' archivos de ' + APP.maxMb + ' MB)';
+
+      APP.correoSesion = (d.sesion && d.sesion.correo) || '';
+      APP.yo = (d.sesion && d.sesion.usuario) || null;
+      APP.admin = !!(APP.yo && APP.yo.admin);
+      APP.alcance = APP.admin ? 'todas' : 'asignadas';
+
+      llenarCatalogos();
+      pintarIdentidad();
+      marcarActivos();
+      $('#cargando').classList.add('hidden');
+      render();
+      ajustarKpiTexto();
+      mostrarAyudaLaPrimeraVez();
+    }).catch(function (e) {
+      $('#cargando').className = 'text-center py-16';
+      $('#cargando').innerHTML =
+        '<p class="text-red-700 text-sm">No se pudo cargar la información: ' + esc(e.message) + '</p>' +
+        '<button onclick="location.reload()" class="btn-secundario mt-3">Reintentar</button>';
+    });
+  };
+
+  function ajustarKpiTexto() {
+    var lbl = $('#kpiAtendidas') ? $('#kpiAtendidas').nextElementSibling : null;
+    if (lbl) lbl.textContent = APP.admin ? 'Atendidas' : 'Por confirmar';
+  }
+
+  filtradas = function () {
+    var q = $('#fBuscar').value.trim().toLowerCase();
+    var fe = $('#fEstado').value, fr = $('#fResponsable').value, fs = $('#fSolicitante').value;
+    var fc = $('#fCategoria').value, fp = $('#fPrioridad').value;
+    var yo = APP.yo ? APP.yo.nombre : null;
+
+    return APP.solicitudes.filter(function (s) {
+      if (fe && s.estado !== fe) return false;
+      if (fr && s.responsable_nombre !== fr) return false;
+      if (fs && s.solicitante_nombre !== fs) return false;
+      if (fc && s.categoria !== fc) return false;
+      if (fp && s.prioridad !== fp) return false;
+
+      if (APP.kpi) {
+        if (!APP.admin) {
+          if (APP.kpi === 'abiertas' && (!yo || s.responsable_nombre !== yo || ['Cerrada','Cancelada','Atendida'].indexOf(s.estado_base || s.estado) !== -1)) return false;
+          if (APP.kpi === 'vencidas' && (!yo || s.responsable_nombre !== yo || !s.vencida)) return false;
+          if (APP.kpi === 'hoy' && (!yo || s.responsable_nombre !== yo || !s.vence_hoy)) return false;
+          if (APP.kpi === 'atendidas' && (!yo || s.solicitante_nombre !== yo || (s.estado_base || s.estado) !== 'Atendida')) return false;
+        } else {
+          if (APP.kpi === 'abiertas' && ['Cerrada','Cancelada','Atendida'].indexOf(s.estado_base || s.estado) !== -1) return false;
+          if (APP.kpi === 'vencidas' && !s.vencida) return false;
+          if (APP.kpi === 'hoy' && !s.vence_hoy) return false;
+          if (APP.kpi === 'atendidas' && (s.estado_base || s.estado) !== 'Atendida') return false;
+        }
+      } else {
+        if (APP.alcance === 'asignadas' && (!yo || s.responsable_nombre !== yo)) return false;
+        if (APP.alcance === 'mias' && (!yo || s.solicitante_nombre !== yo)) return false;
+      }
+
+      if (q) {
+        var heno = [s.folio, s.titulo, s.descripcion, s.cliente_proyecto, s.responsable_nombre,
+          s.solicitante_nombre, s.categoria, s.espera_de, s.motivo_espera,
+          s.justificacion_urgente].join(' ').toLowerCase();
+        if (heno.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  };
+
+  renderIndicadores = function () {
+    var abiertas = 0, hoy = 0, vencidas = 0, atendidas = 0;
+    var nombre = APP.yo ? APP.yo.nombre : '';
+    APP.solicitudes.forEach(function (s) {
+      var base = s.estado_base || s.estado;
+      if (APP.admin) {
+        if (['Cerrada','Cancelada','Atendida'].indexOf(base) === -1) abiertas++;
+        if (s.vence_hoy) hoy++;
+        if (s.vencida) vencidas++;
+        if (base === 'Atendida') atendidas++;
+      } else {
+        if (s.responsable_nombre === nombre && ['Cerrada','Cancelada','Atendida'].indexOf(base) === -1) abiertas++;
+        if (s.responsable_nombre === nombre && s.vence_hoy) hoy++;
+        if (s.responsable_nombre === nombre && s.vencida) vencidas++;
+        if (s.solicitante_nombre === nombre && base === 'Atendida') atendidas++;
+      }
+    });
+    $('#kpiAbiertas').textContent = abiertas;
+    $('#kpiHoy').textContent = hoy;
+    $('#kpiVencidas').textContent = vencidas;
+    $('#kpiAtendidas').textContent = atendidas;
+    ajustarKpiTexto();
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Tarjetas con contexto, no con juicio                              */
+  /* ---------------------------------------------------------------- */
+
+  tarjeta = function (s) {
+    var espera = s.en_espera
+      ? '<div class="mt-2 rounded bg-violet-50 border border-violet-100 px-2 py-1.5 text-xs text-violet-700">' +
+          '<strong>En espera de ' + esc(s.espera_de || 'un insumo') + '</strong>' +
+          (s.motivo_espera ? '<div class="mt-0.5">' + esc(s.motivo_espera) + '</div>' : '') + '</div>' : '';
+    var propuesta = s.propuesta_pendiente
+      ? '<div class="mt-2 text-[11px] text-blue-700">Nueva fecha propuesta: <strong>' + fechaCorta(s.fecha_propuesta) + '</strong></div>' : '';
+
+    return '' +
+      '<article class="tarjeta' + (s.vencida ? ' vencida' : '') + '" data-id="' + esc(s.id) + '" draggable="true" tabindex="0">' +
+        '<div class="flex items-center justify-between gap-2">' +
+          '<span class="text-[11px] font-mono text-slate-500">' + (s.privada ? '🔒 ' : '') + esc(s.folio) + '</span>' +
+          '<span class="etq ' + COLOR_PRIORIDAD[s.prioridad] + '">' + esc(s.prioridad) + '</span>' +
+        '</div>' +
+        '<h3 class="text-sm font-semibold text-slate-800 mt-1 leading-snug">' + esc(s.titulo) + '</h3>' +
+        (s.cliente_proyecto ? '<div class="text-xs text-slate-500 mt-0.5">' + esc(s.cliente_proyecto) + '</div>' : '') +
+        espera + propuesta +
+        '<div class="text-xs text-slate-600 mt-2 space-y-0.5">' +
+          '<div><span class="text-slate-400">Responsable:</span> ' + esc(s.responsable_nombre) + '</div>' +
+          '<div><span class="text-slate-400">Solicita:</span> ' + esc(s.solicitante_nombre) + '</div>' +
+        '</div>' +
+        '<div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100">' +
+          '<span class="text-xs ' + (s.vencida ? 'text-red-700 font-semibold' : 'text-slate-500') + '">' + fechaCorta(s.fecha_limite) + '</span>' +
+          (s.vencida ? '<span class="etq bg-red-600 text-white">Vencida</span>' :
+            (s.vence_hoy ? '<span class="etq bg-amber-500 text-white">Hoy</span>' : '')) +
+        '</div>' +
+      '</article>';
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Nueva solicitud                                                   */
+  /* ---------------------------------------------------------------- */
+
+  abrirNueva = function () {
+    abrirNuevaBase();
+    actualizarCampoUrgente();
+  };
+
+  enviarNueva = function (ev) {
+    ev.preventDefault();
+    var f = ev.target;
+    var boton = f.querySelector('button[type=submit]');
+    var payload = {
+      solicitante_id: f.solicitante_id.value,
+      responsable_id: f.responsable_id.value,
+      categoria: f.categoria.value,
+      prioridad: f.prioridad.value,
+      justificacion_urgente: f.justificacion_urgente ? f.justificacion_urgente.value : '',
+      privada: !!(f.privada && f.privada.checked),
+      titulo: f.titulo.value,
+      descripcion: f.descripcion.value,
+      cliente_proyecto: f.cliente_proyecto.value,
+      fecha_limite: f.fecha_limite.value,
+      archivos: APP.archivos
+    };
+
+    if (payload.prioridad === 'Urgente' && !payload.justificacion_urgente.trim()) {
+      aviso('Explica brevemente por qué requiere atención urgente.', 'error');
+      if (f.justificacion_urgente) f.justificacion_urgente.focus();
+      return;
+    }
+
+    boton.disabled = true;
+    $('#estadoNueva').textContent = 'Guardando…';
+    aviso('Guardando…', 'trabajo');
+
+    llamar('apiCrearSolicitud', payload).then(function (r) {
+      APP.solicitudes.unshift(r.solicitud);
+      render();
+      cerrarModales();
+      if (r.aviso) aviso(r.solicitud.folio + ' creada. ' + r.aviso, 'error');
+      else aviso('Solicitud ' + r.solicitud.folio + ' creada' + (r.correo_enviado ? '. Correo enviado.' : '.'));
+    }).catch(function (e) {
+      $('#estadoNueva').textContent = '';
+      aviso('No se pudo guardar: ' + e.message, 'error');
+    }).then(function () { boton.disabled = false; });
+  };
+
+  /* ---------------------------------------------------------------- */
+  /* Cambios de estado y En espera                                    */
+  /* ---------------------------------------------------------------- */
+
+  cambiarEstado = function (id, estado) {
+    if (!exigeIdentidad()) return;
+    var actual = APP.solicitudes.filter(function (s) { return s.id === id; })[0];
+    if (actual && actual.estado === estado) return;
+
+    if (estado === 'En espera') {
+      var esperaDe = prompt('¿En espera de quién? Escribe: Solicitante, Cliente, Proveedor u Otro');
+      if (esperaDe === null) return;
+      esperaDe = esperaDe.trim();
+      if (['Solicitante','Cliente','Proveedor','Otro'].indexOf(esperaDe) === -1) {
+        aviso('Usa Solicitante, Cliente, Proveedor u Otro.', 'error');
+        render();
+        return;
+      }
+      var motivoEspera = prompt('¿Qué está bloqueando la solicitud?');
+      if (!motivoEspera || !motivoEspera.trim()) { render(); return; }
+      ejecutarAccionEX('apiPonerEnEsperaExperiencia', [id, esperaDe, motivoEspera.trim()],
+        'Solicitud puesta en espera.', id);
+      return;
+    }
+
+    if (APP.estadosAdmin.indexOf(estado) !== -1 && !APP.admin) {
+      aviso('Esta acción requiere Administración o, para cerrar, la confirmación del solicitante.', 'error');
+      render();
+      return;
+    }
+
+    var motivo = '';
+    if (estado === 'Cancelada') motivo = prompt('Motivo de la cancelación (opcional):') || '';
+
+    marcarGuardando(id, true);
+    aviso('Guardando…', 'trabajo');
+    llamar('apiCambiarEstado', id, estado, motivo).then(function (r) {
+      refrescarEnMemoria(r.solicitud);
+      if (APP.detalleId === id) pintarDetalle(r, id);
+      if (r.aviso) aviso(r.aviso, 'error');
+      else aviso('Estado actualizado a ' + estado + (r.correo_enviado ? ' · correo enviado' : ''));
+    }).catch(function (e) {
+      aviso('No se pudo guardar: ' + e.message, 'error');
+      render();
+    });
+  };
+
+  function ejecutarAccionEX(metodo, args, mensaje, id) {
+    aviso('Guardando…', 'trabajo');
+    var llamada = [metodo].concat(args || []);
+    llamar.apply(null, llamada).then(function (r) {
+      if (r && r.solicitud) refrescarEnMemoria(r.solicitud);
+      if (id && APP.detalleId === id && r && r.solicitud) pintarDetalle(r, id);
+      aviso(mensaje || 'Cambios guardados.');
+    }).catch(function (e) {
+      aviso('No se pudo guardar: ' + e.message, 'error');
+      render();
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Detalle como espacio de acuerdo                                   */
+  /* ---------------------------------------------------------------- */
+
+  pintarDetalle = function (datos, id) {
+    pintarDetalleBase(datos, id);
+    if (datos && datos.solicitud && APP.detalleId === id) {
+      enriquecerDetalleExperiencia(datos, id);
+    }
+  };
+
+  function enriquecerDetalleExperiencia(datos, id) {
+    var s = datos.solicitud;
+    var cuerpo = $('#detCuerpo');
+    if (!cuerpo || $('#exPanelDetalle')) return;
+
+    var panel = document.createElement('div');
+    panel.id = 'exPanelDetalle';
+
+    var html = '';
+    if (s.privada) html += '<div class="mb-2"><span class="ex-privada">🔒 Solicitud privada</span></div>';
+
+    if (s.prioridad === 'Urgente' && s.justificacion_urgente) {
+      html += '<div class="ex-banner bg-red-50 border border-red-100 text-red-800"><strong>Motivo de urgencia:</strong> ' +
+        esc(s.justificacion_urgente) + '</div>';
+    }
+
+    if (s.en_espera) {
+      html += '<div class="ex-banner ex-espera"><strong>En espera de ' + esc(s.espera_de || 'un insumo') + '.</strong>' +
+        (s.motivo_espera ? '<div class="mt-1">' + esc(s.motivo_espera) + '</div>' : '') +
+        (soyParte(s) ? '<button id="exReanudar" type="button" class="btn-secundario mt-2">Reanudar solicitud</button>' : '') +
+        '</div>';
+    }
+
+    if (s.propuesta_pendiente) {
+      html += '<div class="ex-banner ex-acuerdo"><strong>Nueva fecha propuesta: ' + fechaCorta(s.fecha_propuesta) + '</strong>' +
+        '<div class="mt-1">' + esc(s.motivo_propuesta || '') + '</div>' +
+        (s.propuesta_por ? '<div class="text-xs mt-1 opacity-75">Propuesta por ' + esc(s.propuesta_por) + '</div>' : '') +
+        ((soySolicitante(s) || APP.admin)
+          ? '<div class="flex flex-wrap gap-2 mt-2"><button id="exAceptarFecha" class="btn-primario" type="button">Aceptar fecha</button>' +
+            '<button id="exConservarFecha" class="btn-secundario" type="button">Conservar fecha actual</button></div>'
+          : '<div class="text-xs mt-2">Pendiente de confirmación por quien solicitó.</div>') + '</div>';
+    }
+
+    if ((s.estado_base || s.estado) === 'Atendida' && (soySolicitante(s) || APP.admin)) {
+      html += '<div class="ex-banner ex-confirmar"><strong>¿Quedó resuelto?</strong>' +
+        '<div class="text-sm mt-1">Confirma el cierre o indica qué ajuste falta.</div>' +
+        '<textarea id="exComentarioAjuste" rows="2" class="entrada bg-white" placeholder="Si requiere ajuste, indica qué falta"></textarea>' +
+        '<div class="flex flex-wrap gap-2 mt-2"><button id="exCerrarAtendida" type="button" class="btn-primario">Sí, cerrar</button>' +
+        '<button id="exPedirAjuste" type="button" class="btn-secundario">Requiere ajuste</button></div></div>';
+    }
+
+    var concluida = ['Atendida','Cerrada','Cancelada'].indexOf(s.estado_base || s.estado) !== -1;
+    if (!concluida && soyParte(s)) {
+      html += '<details class="ex-coordinar"><summary>Coordinar compromiso</summary><div class="ex-coordinar-body">';
+      if (!s.en_espera) {
+        html += '<div class="ex-linea"><div class="text-xs font-semibold text-slate-500">Registrar un bloqueo</div>' +
+          '<div class="ex-linea-2"><select id="exEsperaDe" class="filtro"><option>Solicitante</option><option>Cliente</option><option>Proveedor</option><option>Otro</option></select>' +
+          '<input id="exMotivoEspera" class="entrada mt-0" placeholder="Qué falta para continuar"></div>' +
+          '<div><button id="exPonerEspera" type="button" class="btn-secundario">Poner en espera</button></div></div>';
+      }
+      if (soyResponsable(s) || APP.admin) {
+        html += '<div class="ex-linea pt-2 border-t border-slate-100"><div class="text-xs font-semibold text-slate-500">Proponer una fecha viable</div>' +
+          '<div class="ex-linea-2"><input id="exFechaPropuesta" type="date" class="entrada mt-0">' +
+          '<input id="exMotivoFecha" class="entrada mt-0" placeholder="Por qué necesitas ajustar la fecha"></div>' +
+          '<div><button id="exProponerFecha" type="button" class="btn-secundario">Proponer nueva fecha</button></div></div>';
+      }
+      html += '</div></details>';
+    }
+
+    panel.innerHTML = html;
+    cuerpo.insertBefore(panel, cuerpo.firstChild);
+    conectarAccionesExperiencia(s, id);
+  }
+
+  function conectarAccionesExperiencia(s, id) {
+    var b;
+    b = $('#exReanudar');
+    if (b) b.addEventListener('click', function () {
+      ejecutarAccionEX('apiQuitarEsperaExperiencia', [id], 'Solicitud reanudada.', id);
+    });
+
+    b = $('#exPonerEspera');
+    if (b) b.addEventListener('click', function () {
+      var espera = $('#exEsperaDe').value;
+      var motivo = $('#exMotivoEspera').value.trim();
+      if (!motivo) { aviso('Indica qué está bloqueando la solicitud.', 'error'); return; }
+      ejecutarAccionEX('apiPonerEnEsperaExperiencia', [id, espera, motivo], 'Solicitud puesta en espera.', id);
+    });
+
+    b = $('#exProponerFecha');
+    if (b) b.addEventListener('click', function () {
+      var fecha = $('#exFechaPropuesta').value;
+      var motivo = $('#exMotivoFecha').value.trim();
+      if (!fecha || !motivo) { aviso('Indica la fecha propuesta y el motivo.', 'error'); return; }
+      ejecutarAccionEX('apiProponerFechaExperiencia', [id, fecha, motivo], 'Nueva fecha propuesta.', id);
+    });
+
+    b = $('#exAceptarFecha');
+    if (b) b.addEventListener('click', function () {
+      ejecutarAccionEX('apiResolverFechaExperiencia', [id, true], 'Nueva fecha acordada.', id);
+    });
+
+    b = $('#exConservarFecha');
+    if (b) b.addEventListener('click', function () {
+      ejecutarAccionEX('apiResolverFechaExperiencia', [id, false], 'Se conserva la fecha actual.', id);
+    });
+
+    b = $('#exCerrarAtendida');
+    if (b) b.addEventListener('click', function () {
+      ejecutarAccionEX('apiResolverAtendidaExperiencia', [id, 'cerrar', ''], 'Solicitud cerrada por acuerdo.', id);
+    });
+
+    b = $('#exPedirAjuste');
+    if (b) b.addEventListener('click', function () {
+      var comentario = ($('#exComentarioAjuste') && $('#exComentarioAjuste').value.trim()) || '';
+      if (!comentario) { aviso('Indica qué ajuste falta.', 'error'); return; }
+      ejecutarAccionEX('apiResolverAtendidaExperiencia', [id, 'ajuste', comentario], 'Solicitud devuelta a En proceso.', id);
+    });
+  }
+})();
+</script>
