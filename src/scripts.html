@@ -84,18 +84,48 @@ function ocultarAviso() { clearTimeout(TEMPORIZADOR_TOAST); $('#toast').classLis
 /**
  * Envoltura de google.script.run con promesas.
  * Rechaza tanto los errores de transporte como los {ok:false} del backend.
+ *
+ * Lleva tiempo límite porque google.script.run puede no invocar NINGÚN callback
+ * (despliegue desactualizado, autorización pendiente, la red se cae a media
+ * llamada). Sin esto la pantalla se queda cargando para siempre y en silencio.
  */
+var TIEMPO_LIMITE_MS = 45000;
+
 function llamar(metodo) {
   var args = Array.prototype.slice.call(arguments, 1);
   return new Promise(function (resolver, rechazar) {
+    var terminado = false;
+    var reloj = setTimeout(function () {
+      if (terminado) return;
+      terminado = true;
+      rechazar(new Error('El servidor no respondió en ' + Math.round(TIEMPO_LIMITE_MS / 1000) +
+        ' segundos (' + metodo + '). Suele ser que la Web App no se ha vuelto a implementar ' +
+        'después del último cambio, o que falta autorizar los permisos del script.'));
+    }, TIEMPO_LIMITE_MS);
+
+    function cerrar(fn) {
+      return function (valor) {
+        if (terminado) return;
+        terminado = true;
+        clearTimeout(reloj);
+        fn(valor);
+      };
+    }
+
+    if (!window.google || !google.script || !google.script.run) {
+      cerrar(rechazar)(new Error('Esta página no se está sirviendo como Web App de Apps Script, ' +
+        'así que no hay servidor al cual llamar. Ábrela desde la URL /exec de la implementación.'));
+      return;
+    }
+
     google.script.run
-      .withSuccessHandler(function (r) {
+      .withSuccessHandler(cerrar(function (r) {
         if (r && r.ok) resolver(r.datos);
         else rechazar(new Error((r && r.error) || 'No se pudo completar la operación.'));
-      })
-      .withFailureHandler(function (e) {
+      }))
+      .withFailureHandler(cerrar(function (e) {
         rechazar(new Error((e && e.message) || 'Se perdió la comunicación con el servidor.'));
-      })[metodo].apply(null, args);
+      }))[metodo].apply(null, args);
   });
 }
 
