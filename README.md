@@ -58,11 +58,11 @@ Google pedirá autorización la primera vez (acepta los permisos de Sheets, Driv
   con sus encabezados.
 - La configuración por defecto (categorías, prefijo de folio, límites de adjuntos…).
 - La carpeta de Drive para adjuntos.
-- Un directorio de personas de ejemplo (sin correos).
+- Un directorio de personas de ejemplo.
 
 Es seguro volver a ejecutarla: no borra ni duplica datos existentes.
 
-### 4. Configurar la carpeta de Drive
+### 4. Configurar y compartir la carpeta de Drive
 
 `instalar()` crea la carpeta **"Solicitudes Internas - Adjuntos"** y guarda su ID en
 `CONFIG → carpeta_drive_id`.
@@ -73,20 +73,32 @@ copia su ID desde la URL de Drive
 `CONFIG → carpeta_drive_id`.
 
 Los archivos **no** se hacen públicos: heredan los permisos de la carpeta.
-Comparte esa carpeta con el personal que deba abrir los adjuntos.
+Como la Web App se ejecuta con la identidad de quien la usa, comparte esta carpeta
+con todas las personas que deban subir o abrir adjuntos.
 
-### 5. Agregar las personas y sus correos
+### 5. Agregar las personas, correos y administrador
 
-Dos caminos, equivalentes:
+La identidad se obtiene del correo de la cuenta de Google con la que cada persona
+abre la Web App. Por eso el correo ya no es opcional para operar el sistema.
 
-- **Desde la hoja `USUARIOS`**: llena `id` (cualquier texto único), `nombre`, `correo`,
-  `area` y `activo` (`SI` / `NO`).
-- **Desde la aplicación**: cambia a modo **Administración** y abre **Directorio**.
+Primero completa la hoja `USUARIOS` con `id`, `nombre`, `correo`, `area`, `activo`
+y `admin`. Un mismo correo no puede corresponder a dos usuarios activos.
 
-Sin correo, la persona aparece en los catálogos pero no recibe notificaciones
-(el sistema lo avisa en pantalla y lo registra en el historial).
+Para la primera persona administradora puedes:
 
-### 6. Crear el Trigger diario
+- dejar a **Eduwin** con su correo y `admin = SI` en la instalación inicial; o
+- ejecutar una vez `otorgarPrimerAdmin_(correo, nombre)` desde el editor.
+
+Después, Administración puede gestionar el directorio desde la propia aplicación.
+
+### 6. Compartir el Sheet
+
+La Web App está configurada para ejecutarse como **el usuario que accede**. Por ello,
+comparte el Google Sheet con las personas que usarán el sistema, con permisos suficientes
+para leer y escribir. No hace falta que entren al Sheet para operar: la aplicación sigue
+siendo la interfaz de trabajo, pero Apps Script necesita esos permisos para ejecutar.
+
+### 7. Crear el Trigger diario
 
 En el editor, ejecuta una vez la función **`crearTriggerDiario`**. Programa
 `enviarRecordatoriosDiarios` alrededor de las 8:00 AM.
@@ -94,13 +106,22 @@ En el editor, ejecuta una vez la función **`crearTriggerDiario`**. Programa
 También puedes hacerlo a mano: **Activadores → Añadir activador** →
 función `enviarRecordatoriosDiarios`, origen *Basado en tiempo*, *Temporizador diario*.
 
-### 7. Desplegar la Web App
+El trigger se ejecuta con la cuenta que lo crea; conviene crearlo desde la cuenta
+administradora propietaria del sistema.
+
+### 8. Desplegar la Web App
 
 **Implementar → Nueva implementación → Aplicación web**:
 
-- *Ejecutar como*: **Yo** (así todos escriben en el mismo Sheet y Drive).
-- *Quién tiene acceso*: **Cualquier usuario de <tu dominio>**
-  (o *Cualquier usuario con la cuenta de Google*, según convenga).
+- *Ejecutar como*: **Usuario que accede a la aplicación web**.
+- *Quién tiene acceso*: **Cualquier usuario con una cuenta de Google**
+  (o restringido al dominio si todo el equipo pertenece al mismo Google Workspace).
+
+Esta configuración es necesaria para que `Session.getActiveUser().getEmail()` identifique
+al usuario de forma fiable. Si se despliega como **Yo**, Apps Script puede devolver el
+correo activo vacío y el sistema no podrá identificar a la persona.
+
+La primera vez, cada usuario deberá autorizar los permisos solicitados por Apps Script.
 
 Copia la URL `/exec` y compártela con el personal. Tras editar el código,
 usa **Implementar → Administrar implementaciones → Editar → Nueva versión**.
@@ -109,25 +130,26 @@ usa **Implementar → Administrar implementaciones → Editar → Nueva versión
 
 ## Uso
 
-### Modos
+### Identidad y permisos
 
-Sin usuarios ni contraseñas. Cada persona elige su nombre en **"Soy"** (se recuerda
-en el navegador) y el botón **Modo** alterna entre General y Administración.
+No existe selector **"Soy"** ni botón manual de modo. El sistema cruza el correo de la
+cuenta de Google activa contra `USUARIOS` y muestra la persona detectada.
 
-| | General | Administración |
+| Acción | Usuario activo | Administración |
 |---|---|---|
 | Crear, consultar y comentar solicitudes | ✅ | ✅ |
-| Ver las propias y las asignadas | ✅ | ✅ |
+| Ver solicitudes | ✅ | ✅ |
 | Estados Pendiente / En proceso / Atendida | ✅ | ✅ |
-| Ver todas las solicitudes | ✅ | ✅ |
 | Reasignar responsable | — | ✅ |
 | Editar datos de la solicitud | — | ✅ |
 | Cerrar y Cancelar | — | ✅ |
 | Administrar el directorio | — | ✅ |
 
-El cambio de modo es por confianza; en esta versión no hay autenticación administrativa.
-Aun así, el backend rechaza cerrar o cancelar cuando la llamada no viene en modo
-Administración, y valida todos los datos por su cuenta.
+Los permisos administrativos se validan también en el servidor mediante la columna
+`admin`; no dependen de un botón, parámetro o selección enviada desde el navegador.
+
+El formulario permite registrar una solicitud a nombre de otra persona, pero el historial
+siempre conserva como actor real a quien tenía la sesión abierta.
 
 ### Guía de uso dentro de la app
 
@@ -196,7 +218,7 @@ Se validan en el navegador y otra vez en el servidor.
 | `notificaciones_activas` | `SI` / `NO` — interruptor general del correo |
 | `correo_copia_admin` | Correo que recibe copia de las notificaciones |
 | `max_archivos` | Máximo de adjuntos por solicitud |
-| `max_mb_archivo` | Tamaño máximo por archivo, en MB |
+| `max_mb_archivo` | Tamaño máximo por archivo en MB |
 
 Los cambios aplican en la siguiente carga de la aplicación.
 
@@ -214,7 +236,7 @@ Los cambios aplican en la siguiente carga de la aplicación.
   (creación, cambio de estado, reasignación, comentarios, cierre, cancelación,
   edición y fallos de notificación)
 - **ADJUNTOS** — `id`, `solicitud_id`, `fecha`, `drive_id`, `nombre`, `tipo`, `tamano`, `url`
-- **USUARIOS** — `id`, `nombre`, `correo`, `area`, `activo` (catálogo, no cuentas)
+- **USUARIOS** — `id`, `nombre`, `correo`, `area`, `activo`, `admin`
 - **CONFIG** — `clave`, `valor`, `descripcion`
 
 No edites los encabezados de la fila 1: el código lee las columnas por nombre.
@@ -231,8 +253,9 @@ node pruebas/correr.js
 ```
 
 Cubre folios consecutivos, validaciones, cálculo de vencidas, permisos de
-Administración, notificaciones, historial y la garantía de que un fallo de correo
-no pierde la solicitud.
+Administración, identidad por correo, rechazo de cuentas no registradas, correos
+duplicados, notificaciones, historial y la garantía de que un fallo de correo no pierde
+la solicitud.
 
 ---
 
@@ -262,7 +285,7 @@ src/
   Code.gs             doGet + API expuesta a google.script.run
   Utils.gs            Acceso a Sheets, fechas, validación, LockService
   Config.gs           Hoja CONFIG, instalar(), crearTriggerDiario()
-  Users.gs            Directorio de personas
+  Users.gs            Directorio de personas e identidad de sesión
   Tickets.gs          Solicitudes, estados, comentarios, historial
   Notifications.gs    Correos y recordatorio diario consolidado
   Drive.gs            Carpeta y guardado de adjuntos
