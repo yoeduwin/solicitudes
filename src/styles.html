@@ -51,6 +51,12 @@
            border border-emerald-700 transition hover:bg-emerald-700
            focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60;
   }
+  /* Mismo aspecto que .btn-cabecera pero sin hover/focus de botón: para
+   * indicadores de solo lectura como "Modo", que ya no se puede tocar. */
+  .indicador-cabecera {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm bg-emerald-800/70
+           border border-emerald-700;
+  }
 
   .tab-vista, .tab-alcance {
     @apply px-3 py-1.5 text-sm bg-white transition hover:bg-slate-50 focus:outline-none

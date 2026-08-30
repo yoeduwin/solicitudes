@@ -38,7 +38,9 @@ function apiInicio() {
       max_archivos: limiteArchivos_(),
       max_mb_archivo: Math.round(limiteBytesArchivo_() / 1048576),
       hoy: hoyISO_(),
-      solicitudes: listarSolicitudes_()
+      solicitudes: listarSolicitudes_(),
+      // Identidad de quien entró, detectada por el correo de su cuenta de Google.
+      sesion: { correo: texto_(Session.getActiveUser().getEmail()), usuario: usuarioActual_() }
     };
   });
 }
@@ -78,44 +80,51 @@ function conDetalle_(resultado) {
 
 function apiCrearSolicitud(payload) {
   return ejecutar_('apiCrearSolicitud', function () {
-    return crearSolicitud_(payload);
+    var yo = exigirUsuarioActual_();
+    return crearSolicitud_(payload, yo);
   });
 }
 
-function apiCambiarEstado(id, estado, actorNombre, esAdmin, motivo) {
+function apiCambiarEstado(id, estado, motivo) {
   return ejecutar_('apiCambiarEstado', function () {
-    return conDetalle_(cambiarEstado_(texto_(id), estado, actorNombre, esAdmin === true, motivo));
+    var yo = exigirUsuarioActual_();
+    return conDetalle_(cambiarEstado_(texto_(id), estado, yo.nombre, yo.admin, motivo));
   });
 }
 
 function apiAgregarComentario(id, payload) {
   return ejecutar_('apiAgregarComentario', function () {
-    return conDetalle_(agregarComentario_(texto_(id), payload));
+    var yo = exigirUsuarioActual_();
+    return conDetalle_(agregarComentario_(texto_(id), yo, payload));
   });
 }
 
 /* --- Administración ------------------------------------------------ */
 
-function apiReasignar(id, responsableId, actorNombre) {
+function apiReasignar(id, responsableId) {
   return ejecutar_('apiReasignar', function () {
-    return conDetalle_(reasignar_(texto_(id), responsableId, actorNombre));
+    var yo = exigirAdmin_();
+    return conDetalle_(reasignar_(texto_(id), responsableId, yo.nombre));
   });
 }
 
-function apiActualizarSolicitud(id, cambios, actorNombre) {
+function apiActualizarSolicitud(id, cambios) {
   return ejecutar_('apiActualizarSolicitud', function () {
-    return conDetalle_(actualizarSolicitud_(texto_(id), cambios, actorNombre));
+    var yo = exigirAdmin_();
+    return conDetalle_(actualizarSolicitud_(texto_(id), cambios, yo.nombre));
   });
 }
 
 function apiListarUsuarios() {
   return ejecutar_('apiListarUsuarios', function () {
+    exigirAdmin_();
     return { usuarios: listarUsuarios_(true) };
   });
 }
 
 function apiGuardarUsuario(payload) {
   return ejecutar_('apiGuardarUsuario', function () {
+    exigirAdmin_();
     return { usuario: guardarUsuario_(payload), usuarios: listarUsuarios_(true) };
   });
 }
@@ -123,6 +132,7 @@ function apiGuardarUsuario(payload) {
 /** Dispara el resumen diario a mano (útil para probar el trigger). */
 function apiEnviarRecordatorios() {
   return ejecutar_('apiEnviarRecordatorios', function () {
+    exigirAdmin_();
     return { resultado: enviarRecordatoriosDiarios() };
   });
 }

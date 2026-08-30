@@ -81,14 +81,14 @@ function instalar() {
     // Directorio de personas de ejemplo, solo si la hoja está vacía.
     if (leerTodo_(HOJAS.USUARIOS).length === 0) {
       [
-        ['Jimmy Ayala', '', 'Atención a Clientes'],
-        ['Martín Luna', '', 'Operaciones'],
-        ['Eduardo Campos', '', 'Operaciones'],
-        ['Danae', '', 'Asistente Administración'],
-        ['Eduwin', '', 'Dirección / Administración']
+        ['Jimmy Ayala', '', 'Atención a Clientes', false],
+        ['Martín Luna', '', 'Operaciones', false],
+        ['Eduardo Campos', '', 'Operaciones', false],
+        ['Danae', '', 'Asistente Administración', false],
+        ['Eduwin', 'eduwin.ejecutiva@gmail.com', 'Dirección / Administración', true]
       ].forEach(function (u) {
         agregarFila_(HOJAS.USUARIOS, {
-          id: uuid_(), nombre: u[0], correo: u[1], area: u[2], activo: 'SI'
+          id: uuid_(), nombre: u[0], correo: u[1], area: u[2], activo: 'SI', admin: u[3] ? 'SI' : 'NO'
         });
       });
     }
@@ -98,7 +98,10 @@ function instalar() {
     var msg = 'Instalación completa.\n' +
       'Hojas creadas: ' + Object.keys(HOJAS).map(function (k) { return HOJAS[k]; }).join(', ') + '\n' +
       'Carpeta de adjuntos (Drive): ' + carpetaId + '\n' +
-      'Siguiente paso: capture los correos en la hoja USUARIOS y publique la Web App.';
+      'La identidad de cada persona se detecta por su correo de Google: capture el correo de ' +
+      'TODOS en la hoja USUARIOS (no solo de Administración) antes de publicar la Web App, o no ' +
+      'podrán crear ni comentar solicitudes. Si nadie quedó marcado como Administración, corra ' +
+      'otorgarPrimerAdmin_(correo, nombre) una vez desde este editor.';
     console.log(msg);
     return msg;
   });
@@ -121,6 +124,35 @@ function formatearHojas_() {
       if (nom === 'titulo') ancho = 240;
       sh.setColumnWidth(c, ancho);
     }
+  });
+}
+
+/**
+ * EJECUTAR UNA VEZ desde el editor de Apps Script, después de instalar (o al
+ * migrar un directorio existente): da de alta o promueve a la primera persona
+ * con permisos de Administración. Desde ahí ya puede otorgar el resto usando
+ * la pantalla de Directorio — este atajo solo hace falta mientras nadie tiene
+ * el permiso.
+ */
+function otorgarPrimerAdmin_(correo, nombre) {
+  correo = texto_(correo, 160).toLowerCase();
+  if (!correo || !esCorreo_(correo)) throw new Error('Indique un correo válido.');
+
+  return conLock_(function () {
+    var filas = leerTodo_(HOJAS.USUARIOS);
+    for (var i = 0; i < filas.length; i++) {
+      if (texto_(filas[i].correo).toLowerCase() === correo) {
+        actualizarFila_(HOJAS.USUARIOS, filas[i]._fila, { admin: 'SI', activo: 'SI' });
+        cacheOlvidar_();
+        return 'Listo: "' + texto_(filas[i].nombre) + '" (' + correo + ') ya es Administración.';
+      }
+    }
+    agregarFila_(HOJAS.USUARIOS, {
+      id: uuid_(), nombre: texto_(nombre, 120) || correo, correo: correo,
+      area: '', activo: 'SI', admin: 'SI'
+    });
+    cacheOlvidar_();
+    return 'Listo: se creó "' + (texto_(nombre) || correo) + '" (' + correo + ') como Administración.';
   });
 }
 

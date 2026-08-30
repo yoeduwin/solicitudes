@@ -19,22 +19,18 @@
     </div>
 
     <div class="flex items-center gap-2" data-tip-abajo
-      data-tip="Elige tu nombre del directorio. Se usa para firmar lo que crees, comentes o cambies. No es una cuenta ni lleva contraseña.">
-      <label class="text-xs text-emerald-200 hidden sm:block" for="selYo">Soy</label>
-      <select id="selYo"
-        class="rounded-lg bg-emerald-800 border border-emerald-700 text-sm px-2 py-1.5 max-w-[190px]
-               focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-        <option value="">Selecciona tu nombre…</option>
-      </select>
+      data-tip="Se detecta con la cuenta de Google con la que entraste, no se elige. Si el nombre no es el tuyo, pide a Administración que corrija tu correo en el directorio.">
+      <span class="text-xs text-emerald-200 hidden sm:block">Eres</span>
+      <span id="txtYo" class="rounded-lg bg-emerald-800 border border-emerald-700 text-sm px-2.5 py-1.5 max-w-[190px] truncate">—</span>
     </div>
 
     <div class="flex items-center gap-2">
-      <button id="btnModo" type="button" class="btn-cabecera font-medium" data-tip-abajo
-        data-tip="General: crear, comentar y mover a Pendiente, En proceso o Atendida. Administración agrega reasignar, editar, cerrar y cancelar.">
+      <span id="btnModo" class="indicador-cabecera font-medium" data-tip-abajo
+        data-tip="General: crear, comentar y mover a Pendiente, En proceso o Atendida. Administración agrega reasignar, editar, cerrar y cancelar. Lo determina tu cuenta, no se elige aquí.">
         Modo: <span id="txtModo">General</span>
-      </button>
+      </span>
       <button id="btnDirectorio" type="button" class="hidden btn-cabecera" data-tip-abajo
-        data-tip="Alta y edición de personas del directorio: nombre, correo y área.">
+        data-tip="Alta y edición de personas del directorio: nombre, correo, área y permisos de Administración.">
         Directorio
       </button>
       <button id="btnAyuda" type="button" class="btn-cabecera" data-tip-abajo
@@ -50,6 +46,11 @@
     </div>
   </div>
 </header>
+
+<div id="avisoSinRegistrar" class="hidden bg-amber-50 border-b border-amber-200 text-amber-900 text-sm px-4 py-2.5 text-center">
+  Tu cuenta (<span id="txtCorreoSinRegistrar" class="font-medium"></span>) no está dada de alta en el directorio,
+  así que solo puedes consultar. Pide a Administración que te registre con ese correo para poder crear, comentar o cambiar solicitudes.
+</div>
 
 <main class="mx-auto max-w-7xl px-4 py-5">
 
@@ -212,15 +213,22 @@
       <button type="button" class="cerrar-modal text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
     </div>
     <div class="modal-body">
-      <form id="formUsuario" class="grid gap-2 sm:grid-cols-5 items-end bg-slate-50 border border-slate-200 rounded-md p-3 mb-4">
+      <p class="text-xs text-slate-500 mb-3">
+        El correo debe ser el de la cuenta de Google con la que esa persona entra: el sistema la
+        identifica por ahí, no por selección manual.</p>
+      <form id="formUsuario" class="grid gap-2 sm:grid-cols-6 items-end bg-slate-50 border border-slate-200 rounded-md p-3 mb-4">
         <input type="hidden" name="id">
         <label class="campo sm:col-span-2">Nombre *<input name="nombre" required class="entrada"></label>
         <label class="campo sm:col-span-2">Correo<input name="correo" type="email" class="entrada"></label>
-        <label class="campo sm:col-span-2">Área<input name="area" class="entrada"></label>
+        <label class="campo sm:col-span-1">Área<input name="area" class="entrada"></label>
         <label class="campo sm:col-span-1">Activo
           <select name="activo" class="entrada"><option value="SI">Sí</option><option value="NO">No</option></select>
         </label>
-        <div class="sm:col-span-2 flex gap-2">
+        <label class="campo sm:col-span-2 flex items-center gap-2 pb-1.5" data-tip="Puede reasignar, editar, cerrar y cancelar solicitudes, y administrar el directorio. Requiere correo registrado.">
+          <input name="admin" type="checkbox" class="rounded border-slate-300 text-emerald-700 focus:ring-emerald-600">
+          Administración
+        </label>
+        <div class="sm:col-span-4 flex gap-2">
           <button type="submit" class="btn-primario w-full">Guardar</button>
           <button type="button" id="btnNuevoUsuario" class="btn-secundario">Nuevo</button>
         </div>

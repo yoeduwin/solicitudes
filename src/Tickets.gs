@@ -170,14 +170,22 @@ function detalleSolicitud_(id) {
  * Crea una solicitud. payload:
  * {solicitante_id, responsable_id, categoria, prioridad, titulo, descripcion,
  *  cliente_proyecto, fecha_limite, archivos:[{nombre,tipo,datos}]}
+ *
+ * creador: persona de la sesión actual (ya resuelta por correo, ver usuarioActual_).
+ * "Solicitante" puede ser otra persona (p.ej. alguien pidió por WhatsApp y otro
+ * lo registra), pero el historial siempre firma con quien de verdad la creó:
+ * de lo contrario cualquiera podría dejar constancia de que la creó otro.
  */
-function crearSolicitud_(payload) {
+function crearSolicitud_(payload, creador) {
   payload = payload || {};
 
   var solicitante = buscarUsuario_(payload.solicitante_id, payload.solicitante_nombre);
   var responsable = buscarUsuario_(payload.responsable_id, payload.responsable_nombre);
   if (!solicitante) throw new Error('Seleccione quién solicita.');
   if (!responsable) throw new Error('Seleccione a quién se asigna la solicitud.');
+
+  var actor = (creador && creador.nombre) || solicitante.nombre;
+  var porCuentaDeOtro = actor !== solicitante.nombre;
 
   var titulo = texto_(payload.titulo, 200);
   var descripcion = texto_(payload.descripcion, 5000);
@@ -219,14 +227,15 @@ function crearSolicitud_(payload) {
       fecha_cierre: ''
     };
     agregarFila_(HOJAS.SOLICITUDES, registro);
-    agregarHistorial_(id, solicitante.nombre, 'Creación',
-      'Solicitud creada y asignada a ' + responsable.nombre + '. Fecha límite: ' + fechaLegible_(fechaLimite) + '.');
+    agregarHistorial_(id, actor, 'Creación',
+      'Solicitud creada' + (porCuentaDeOtro ? ' a nombre de ' + solicitante.nombre : '') +
+      ' y asignada a ' + responsable.nombre + '. Fecha límite: ' + fechaLegible_(fechaLimite) + '.');
 
     var adjuntos = [];
     try {
       adjuntos = guardarAdjuntos_(id, folio, archivos);
       if (adjuntos.length) {
-        agregarHistorial_(id, solicitante.nombre, 'Adjuntos',
+        agregarHistorial_(id, actor, 'Adjuntos',
           adjuntos.length + ' archivo(s): ' + adjuntos.map(function (a) { return a.nombre; }).join(', '));
       }
     } catch (e) {
@@ -248,7 +257,7 @@ function crearSolicitud_(payload) {
   } else if (!notificacionesActivas_()) {
     aviso = 'Notificaciones desactivadas en configuración.';
   } else {
-    correoEnviado = notificarSeguro_(s.id, solicitante.nombre, 'Nueva solicitud a ' + responsable.nombre, function () {
+    correoEnviado = notificarSeguro_(s.id, actor, 'Nueva solicitud a ' + responsable.nombre, function () {
       return notificarNuevaSolicitud_(s, resultado.adjuntos);
     });
     if (!correoEnviado) aviso = 'La solicitud se guardó, pero el correo no pudo enviarse.';
@@ -448,14 +457,13 @@ function actualizarSolicitud_(id, cambios, actor) {
 
 /**
  * Agrega un comentario. Solo envía correo si notificar === true.
+ * autor: persona de la sesión actual (ya resuelta por correo, ver usuarioActual_).
  */
-function agregarComentario_(id, payload) {
+function agregarComentario_(id, autor, payload) {
   payload = payload || {};
-  var autor = buscarUsuario_(payload.autor_id, payload.autor_nombre);
   var cuerpo = texto_(payload.comentario, 4000);
   var notificar = payload.notificar === true || payload.notificar === 'true';
 
-  if (!autor) throw new Error('Seleccione quién comenta.');
   if (!cuerpo) throw new Error('El comentario no puede estar vacío.');
 
   var salida = conLock_(function () {

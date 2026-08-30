@@ -24,7 +24,7 @@ var ENCABEZADOS = {
   COMENTARIOS: ['id', 'solicitud_id', 'fecha', 'autor_nombre', 'autor_email', 'comentario', 'notificar'],
   HISTORIAL: ['id', 'solicitud_id', 'fecha', 'actor', 'accion', 'detalle'],
   ADJUNTOS: ['id', 'solicitud_id', 'fecha', 'drive_id', 'nombre', 'tipo', 'tamano', 'url'],
-  USUARIOS: ['id', 'nombre', 'correo', 'area', 'activo'],
+  USUARIOS: ['id', 'nombre', 'correo', 'area', 'activo', 'admin'],
   CONFIG: ['clave', 'valor', 'descripcion']
 };
 
