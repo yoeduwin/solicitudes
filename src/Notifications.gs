@@ -107,11 +107,14 @@ function notificarReasignacion_(s, responsableAnterior, actor) {
 
 function notificarAtendida_(s, actor) {
   if (!s.solicitante_email) return false;
-  var cuerpo = '<p style="margin:0 0 16px;font-size:14px">' +
+  var cuerpo = '<p style="margin:0 0 12px;font-size:14px">' +
     escaparHtml_(s.solicitante_nombre) + ', tu solicitud fue marcada como <strong>Atendida</strong> por ' +
-    escaparHtml_(actor) + '.</p>' + tablaSolicitud_(s);
+    escaparHtml_(actor) + '.</p>' +
+    '<p style="margin:0 0 16px;font-size:14px;color:#4b5563">' +
+    'Entra al sistema para confirmar si quedó resuelta o indicar qué ajuste falta.</p>' +
+    tablaSolicitud_(s);
   return enviar_(s.solicitante_email,
-    '[' + s.folio + '] Atendida: ' + s.titulo, plantilla_('Solicitud atendida', cuerpo));
+    '[' + s.folio + '] Por confirmar: ' + s.titulo, plantilla_('Solicitud lista para confirmar', cuerpo));
 }
 
 function notificarComentario_(s, comentario, destinos) {
@@ -133,6 +136,9 @@ function notificarComentario_(s, comentario, destinos) {
  * Función para el Trigger diario.
  * Envía UN correo por responsable con sus solicitudes vencidas,
  * las que vencen hoy y las próximas a vencer.
+ *
+ * Una solicitud explícitamente "En espera" queda fuera del recordatorio hasta
+ * que se reanude: el bloqueo documentado no se trata como incumplimiento.
  */
 function enviarRecordatoriosDiarios() {
   if (!notificacionesActivas_()) {
@@ -143,11 +149,13 @@ function enviarRecordatoriosDiarios() {
   var ventana = parseInt(cfg.dias_proximos_vencer, 10);
   if (isNaN(ventana) || ventana < 0) ventana = 3;
 
-  var abiertas = listarSolicitudes_().filter(function (s) {
-    return ESTADOS_NO_VENCIBLES.indexOf(s.estado) === -1 && s.fecha_limite;
+  var metas = mapaMetasExperiencia_();
+  var abiertas = listarSolicitudes_().map(function (s) {
+    return decorarSolicitudExperiencia_(s, metas[s.id]);
+  }).filter(function (s) {
+    return !s.en_espera && ESTADOS_NO_VENCIBLES.indexOf(s.estado_base || s.estado) === -1 && s.fecha_limite;
   });
 
-  // Agrupa por correo de responsable.
   var porResponsable = {};
   abiertas.forEach(function (s) {
     var d = s.dias_restantes;
