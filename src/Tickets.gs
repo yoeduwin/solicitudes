@@ -448,14 +448,13 @@ function actualizarSolicitud_(id, cambios, actor) {
 
 /**
  * Agrega un comentario. Solo envía correo si notificar === true.
+ * autor: persona de la sesión actual (ya resuelta por correo, ver usuarioActual_).
  */
-function agregarComentario_(id, payload) {
+function agregarComentario_(id, autor, payload) {
   payload = payload || {};
-  var autor = buscarUsuario_(payload.autor_id, payload.autor_nombre);
   var cuerpo = texto_(payload.comentario, 4000);
   var notificar = payload.notificar === true || payload.notificar === 'true';
 
-  if (!autor) throw new Error('Seleccione quién comenta.');
   if (!cuerpo) throw new Error('El comentario no puede estar vacío.');
 
   var salida = conLock_(function () {

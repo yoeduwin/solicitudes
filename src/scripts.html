@@ -16,7 +16,8 @@ var APP = {
   hoy: '',
   maxArchivos: 5,
   maxMb: 5,
-  yo: null,              // objeto usuario seleccionado en "Soy"
+  yo: null,              // persona detectada por el correo de la sesión (null = correo no registrado)
+  correoSesion: '',
   admin: false,
   vista: 'kanban',
   alcance: 'todas',
@@ -98,30 +99,13 @@ function llamar(metodo) {
   });
 }
 
-function guardarPreferencias() {
-  try {
-    localStorage.setItem('sol_yo', APP.yo ? APP.yo.id : '');
-    localStorage.setItem('sol_admin', APP.admin ? '1' : '');
-  } catch (e) { /* almacenamiento no disponible: no es crítico */ }
-}
 function leerPreferencia(clave) {
   try { return localStorage.getItem(clave) || ''; } catch (e) { return ''; }
 }
 
-function usuarioPorId(id) {
-  for (var i = 0; i < APP.usuariosTodos.length; i++) {
-    if (APP.usuariosTodos[i].id === id) return APP.usuariosTodos[i];
-  }
-  return null;
-}
-
-/** Nombre a usar como "actor" en historial y correos. */
-function actor() { return APP.yo ? APP.yo.nombre : (APP.admin ? 'Administración' : 'Sin identificar'); }
-
 function exigeIdentidad() {
   if (!APP.yo) {
-    aviso('Selecciona tu nombre en "Soy" antes de continuar.', 'error');
-    $('#selYo').focus();
+    aviso('Tu cuenta no está registrada en el directorio: pide a Administración que te dé de alta.', 'error');
     return false;
   }
   return true;
@@ -152,8 +136,13 @@ function cargarInicio() {
     $('#ayudaAdjuntos').textContent = '(PDF, JPG o PNG · máx. ' + APP.maxArchivos +
       ' archivos de ' + APP.maxMb + ' MB)';
 
+    APP.correoSesion = (d.sesion && d.sesion.correo) || '';
+    APP.yo = (d.sesion && d.sesion.usuario) || null;
+    APP.admin = !!(APP.yo && APP.yo.admin);
+
     llenarCatalogos();
-    restaurarPreferencias();
+    pintarIdentidad();
+    marcarActivos();
     $('#cargando').classList.add('hidden');
     render();
     mostrarAyudaLaPrimeraVez();
@@ -178,7 +167,6 @@ function opciones(lista, valorInicial, etiqueta) {
 function llenarCatalogos() {
   var nombres = APP.usuarios.map(function (u) { return u.nombre; });
 
-  $('#selYo').innerHTML = opciones(APP.usuarios, '', 'Selecciona tu nombre…');
   $('#fEstado').innerHTML = opciones(APP.estados, '', 'Todos los estados');
   $('#fResponsable').innerHTML = opciones(nombres, '', 'Todo responsable');
   $('#fSolicitante').innerHTML = opciones(nombres, '', 'Todo solicitante');
@@ -193,15 +181,19 @@ function llenarCatalogos() {
   f.prioridad.value = 'Normal';
 }
 
-function restaurarPreferencias() {
-  var yoId = leerPreferencia('sol_yo');
-  if (yoId && usuarioPorId(yoId)) {
-    APP.yo = usuarioPorId(yoId);
-    $('#selYo').value = yoId;
-  }
-  APP.admin = leerPreferencia('sol_admin') === '1';
-  aplicarModo();
-  marcarActivos();
+/** Pinta en la cabecera quién detectó el sistema y qué puede hacer, según su correo. */
+function pintarIdentidad() {
+  $('#txtYo').textContent = APP.yo ? APP.yo.nombre : (APP.correoSesion || 'Sin identificar');
+  $('#txtModo').textContent = APP.admin ? 'Administración' : 'General';
+  $('#btnModo').classList.toggle('bg-white', APP.admin);
+  $('#btnModo').classList.toggle('text-emerald-900', APP.admin);
+  $('#btnDirectorio').classList.toggle('hidden', !APP.admin);
+
+  $('#txtCorreoSinRegistrar').textContent = APP.correoSesion || '(sin correo detectado)';
+  $('#avisoSinRegistrar').classList.toggle('hidden', !!APP.yo);
+  $('#btnNueva').disabled = !APP.yo;
+  $('#btnNueva').classList.toggle('opacity-50', !APP.yo);
+  $('#btnNueva').classList.toggle('cursor-not-allowed', !APP.yo);
 }
 
 /* ------------------------------------------------------------------ */
@@ -209,24 +201,6 @@ function restaurarPreferencias() {
 /* ------------------------------------------------------------------ */
 
 function conectarEventos() {
-  $('#selYo').addEventListener('change', function () {
-    APP.yo = usuarioPorId(this.value);
-    guardarPreferencias();
-    if (APP.yo) {
-      var f = $('#formNueva');
-      if (!f.solicitante_id.value) f.solicitante_id.value = APP.yo.id;
-    }
-    render();
-  });
-
-  $('#btnModo').addEventListener('click', function () {
-    APP.admin = !APP.admin;
-    guardarPreferencias();
-    aplicarModo();
-    if (APP.detalleId) abrirDetalle(APP.detalleId);
-    render();
-  });
-
   $('#btnNueva').addEventListener('click', abrirNueva);
   $('#btnDirectorio').addEventListener('click', abrirDirectorio);
   $('#btnAyuda').addEventListener('click', abrirAyuda);
@@ -266,13 +240,6 @@ function conectarEventos() {
   $('#inpArchivos').addEventListener('change', prepararArchivos);
   $('#formUsuario').addEventListener('submit', guardarUsuario);
   $('#btnNuevoUsuario').addEventListener('click', function () { cargarFormularioUsuario(null); });
-}
-
-function aplicarModo() {
-  $('#txtModo').textContent = APP.admin ? 'Administración' : 'General';
-  $('#btnModo').classList.toggle('bg-white', APP.admin);
-  $('#btnModo').classList.toggle('text-emerald-900', APP.admin);
-  $('#btnDirectorio').classList.toggle('hidden', !APP.admin);
 }
 
 function marcarActivos() {
@@ -525,7 +492,7 @@ function cambiarEstado(id, estado) {
   marcarGuardando(id, true);
   aviso('Guardando…', 'trabajo');
 
-  llamar('apiCambiarEstado', id, estado, actor(), APP.admin, motivo).then(function (r) {
+  llamar('apiCambiarEstado', id, estado, motivo).then(function (r) {
     refrescarEnMemoria(r.solicitud);
     // La respuesta ya trae comentarios, historial y adjuntos: no hace falta otra llamada.
     if (APP.detalleId === id) pintarDetalle(r, id);
@@ -548,6 +515,7 @@ function marcarGuardando(id, activo) {
 /* ------------------------------------------------------------------ */
 
 function abrirNueva() {
+  if (!exigeIdentidad()) return;
   var f = $('#formNueva');
   f.reset();
   APP.archivos = [];
@@ -817,7 +785,7 @@ function conectarDetalle(s) {
     boton.disabled = true;
     aviso('Guardando…', 'trabajo');
     llamar('apiAgregarComentario', s.id, {
-      autor_id: APP.yo.id, comentario: texto, notificar: $('#chkNotificar').checked
+      comentario: texto, notificar: $('#chkNotificar').checked
     }).then(function (r) {
       refrescarEnMemoria(r.solicitud);
       pintarDetalle(r, s.id);
@@ -835,7 +803,7 @@ function conectarDetalle(s) {
     var destino = $('#detReasignar').value;
     if (!destino) { aviso('Selecciona al nuevo responsable.', 'error'); return; }
     aviso('Guardando…', 'trabajo');
-    llamar('apiReasignar', s.id, destino, actor()).then(function (r) {
+    llamar('apiReasignar', s.id, destino).then(function (r) {
       refrescarEnMemoria(r.solicitud);
       pintarDetalle(r, s.id);
       if (r.aviso) aviso(r.aviso, 'error');
@@ -863,7 +831,7 @@ function conectarDetalle(s) {
       fecha_limite: $('#edFecha').value
     };
     aviso('Guardando…', 'trabajo');
-    llamar('apiActualizarSolicitud', s.id, cambios, actor()).then(function (r) {
+    llamar('apiActualizarSolicitud', s.id, cambios).then(function (r) {
       refrescarEnMemoria(r.solicitud);
       pintarDetalle(r, s.id);
       aviso(r.aviso || 'Cambios guardados.');
@@ -896,7 +864,8 @@ function pintarUsuarios() {
       '<td class="px-2 py-1.5 text-slate-500">' + esc(u.area || '—') + '</td>' +
       '<td class="px-2 py-1.5">' + (u.activo
         ? '<span class="etq bg-emerald-100 text-emerald-700">Activo</span>'
-        : '<span class="etq bg-slate-100 text-slate-500">Inactivo</span>') + '</td>' +
+        : '<span class="etq bg-slate-100 text-slate-500">Inactivo</span>') +
+        (u.admin ? ' <span class="etq bg-blue-100 text-blue-700">Admin</span>' : '') + '</td>' +
       '<td class="px-2 py-1.5 text-right">' +
         '<button type="button" class="editar-usuario text-emerald-800 underline text-xs" data-id="' +
         esc(u.id) + '">Editar</button></td></tr>';
@@ -923,6 +892,7 @@ function cargarFormularioUsuario(u) {
   f.correo.value = u ? u.correo : '';
   f.area.value = u ? u.area : '';
   f.activo.value = (!u || u.activo) ? 'SI' : 'NO';
+  f.admin.checked = !!(u && u.admin);
 }
 
 function guardarUsuario(ev) {
@@ -931,13 +901,21 @@ function guardarUsuario(ev) {
   $('#estadoDirectorio').textContent = 'Guardando…';
   llamar('apiGuardarUsuario', {
     id: f.id.value, nombre: f.nombre.value, correo: f.correo.value,
-    area: f.area.value, activo: f.activo.value === 'SI'
+    area: f.area.value, activo: f.activo.value === 'SI', admin: f.admin.checked
   }).then(function (r) {
     APP.usuariosTodos = r.usuarios;
     APP.usuarios = r.usuarios.filter(function (u) { return u.activo; });
-    var yoId = APP.yo ? APP.yo.id : '';
     llenarCatalogos();
-    if (yoId) { APP.yo = usuarioPorId(yoId); $('#selYo').value = yoId; }
+    // Si la persona editada es quien tiene la sesión abierta (p.ej. se le dieron
+    // permisos de Administración), se refleja de inmediato sin recargar.
+    if (APP.yo) {
+      var actualizado = r.usuarios.filter(function (u) { return u.id === APP.yo.id; })[0];
+      if (actualizado) {
+        APP.yo = actualizado;
+        APP.admin = !!actualizado.admin;
+        pintarIdentidad();
+      }
+    }
     pintarUsuarios();
     cargarFormularioUsuario(null);
     $('#estadoDirectorio').textContent = '';
