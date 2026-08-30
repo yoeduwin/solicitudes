@@ -67,6 +67,19 @@ function guardarUsuario_(payload) {
       }
     }
 
+    // Un mismo correo no puede identificar a dos personas activas. La comparación
+    // es insensible a mayúsculas/minúsculas porque usuarioActual_ también normaliza.
+    if (activo === 'SI' && correo) {
+      for (var c = 0; c < filas.length; c++) {
+        var otroId = texto_(filas[c].id);
+        var otroCorreo = texto_(filas[c].correo).toLowerCase();
+        var otroActivo = esVerdadero_(filas[c].activo);
+        if (otroId !== id && otroActivo && otroCorreo && otroCorreo === correo) {
+          throw new Error('El correo "' + correo + '" ya está registrado para otra persona activa.');
+        }
+      }
+    }
+
     if (id) {
       for (var j = 0; j < filas.length; j++) {
         if (texto_(filas[j].id) === id) {
