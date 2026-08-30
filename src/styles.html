@@ -132,7 +132,13 @@
   /* ---------- Ayuda ---------- */
   .ayuda-si { @apply border-l-4 border-emerald-600 bg-emerald-50/60 rounded-r-lg p-4; }
   .ayuda-no { @apply border-l-4 border-slate-400 bg-slate-50 rounded-r-lg p-4; }
-  .ayuda-lista { @apply mt-2 space-y-1.5 text-sm text-slate-700; }
-  .ayuda-lista li { @apply flex gap-2; }
-  .ayuda-lista li::before { content: '·'; @apply text-slate-400 font-bold; }
+  .ayuda-lista { @apply mt-2 space-y-1.5 text-sm text-slate-700 list-none pl-4; }
+  /* Ojo: el <li> NO debe ser flex. Con texto mixto (nodos de texto + <strong>),
+   * flex convierte cada fragmento en una caja independiente que se ajusta de
+   * línea por su cuenta, y el texto se ve roto en pedazos sueltos. */
+  .ayuda-lista li { @apply relative; }
+  .ayuda-lista li::before {
+    content: '·';
+    @apply absolute -left-4 text-slate-400 font-bold;
+  }
 </style>
