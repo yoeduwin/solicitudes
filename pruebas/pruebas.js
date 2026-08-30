@@ -98,6 +98,9 @@ assert(ini.datos.sesion.usuario && ini.datos.sesion.usuario.nombre==='Eduwin','s
 assert(ini.datos.sesion.usuario.admin===true,'sesión conserva permiso admin');
 __setActiveEmail('desconocido@ea.mx');
 cacheOlvidar_();
+assert(apiInicio().ok===false,'cuenta no registrada no puede leer el tablero');
+assert(apiListarSolicitudes().ok===false,'cuenta no registrada no puede listar solicitudes');
+assert(apiDetalle(r.solicitud.id).ok===false,'cuenta no registrada no puede abrir detalles');
 assert(apiCrearSolicitud({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Otro',prioridad:'Normal',titulo:'No debe',descripcion:'x',fecha_limite:'2030-01-01'}).ok===false,'cuenta no registrada no puede crear');
 __setActiveEmail('eduwin@ea.mx');
 cacheOlvidar_();
