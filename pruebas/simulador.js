@@ -21,7 +21,12 @@ global.SpreadsheetApp={ getActiveSpreadsheet:()=>({
   insertSheet:n=>(SHEETS[n]=new Sheet(n)),
   getSpreadsheetTimeZone:()=>'America/Mexico_City'
 }), flush(){}};
-global.Session={getScriptTimeZone:()=>'America/Mexico_City'};
+let ACTIVE_EMAIL='eduwin@ea.mx';
+global.Session={
+  getScriptTimeZone:()=>'America/Mexico_City',
+  getActiveUser:()=>({getEmail:()=>ACTIVE_EMAIL})
+};
+global.__setActiveEmail=(email)=>{ ACTIVE_EMAIL=email||''; };
 let uuidN=0;
 global.Utilities={
   getUuid:()=>'id-'+(++uuidN),
