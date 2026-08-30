@@ -12,7 +12,7 @@ const path = require('path');
 const vm = require('vm');
 
 const raiz = path.join(__dirname, '..');
-const orden = ['Utils', 'Config', 'Users', 'Drive', 'Notifications', 'Tickets', 'Code'];
+const orden = ['Utils', 'Config', 'Users', 'Drive', 'Notifications', 'Tickets', 'Experience', 'Code'];
 
 let fuente = fs.readFileSync(path.join(__dirname, 'simulador.js'), 'utf8');
 orden.forEach(function (n) {
