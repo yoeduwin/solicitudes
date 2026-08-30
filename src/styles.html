@@ -1,0 +1,40 @@
+<!-- El CDN de Tailwind procesa @apply solo dentro de un bloque type="text/tailwindcss". -->
+<style type="text/tailwindcss">
+  /* Clases de apoyo sobre Tailwind (CDN) para no repetir cadenas largas. */
+
+  .kpi {
+    @apply bg-white border rounded-lg p-3 text-left transition hover:shadow-sm;
+  }
+  .kpi-num { @apply block text-2xl font-bold leading-none; }
+  .kpi-lbl { @apply block text-xs text-slate-500 mt-1; }
+  .kpi.activo { @apply ring-2 ring-emerald-600; }
+
+  .filtro { @apply rounded-md border border-slate-300 px-2 py-2 text-sm bg-white; }
+  .entrada { @apply mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm
+             focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600; }
+  .campo { @apply block text-sm font-medium text-slate-700; }
+
+  .btn-primario { @apply rounded-md bg-emerald-800 px-4 py-2 text-sm font-semibold text-white
+                  hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-secundario { @apply rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50; }
+
+  .tab-vista, .tab-alcance { @apply px-3 py-1.5 text-sm bg-white hover:bg-slate-50; }
+  .tab-vista.activo, .tab-alcance.activo { @apply bg-emerald-800 text-white hover:bg-emerald-800; }
+
+  .modal { @apply fixed inset-0 z-40 bg-slate-900/50 overflow-y-auto p-3 sm:p-6; }
+  .modal-caja { @apply bg-white rounded-lg shadow-xl mx-auto w-full; }
+  .modal-head { @apply flex items-start justify-between gap-3 px-5 py-3 border-b border-slate-200 sticky top-0 bg-white rounded-t-lg; }
+  .modal-body { @apply p-5; }
+
+  /* Tarjetas del Kanban */
+  .tarjeta { @apply bg-white border border-slate-200 rounded-md p-3 text-left w-full
+             hover:border-emerald-600 hover:shadow-sm transition cursor-pointer; }
+  .tarjeta.vencida { @apply border-red-300 bg-red-50/60; }
+  .tarjeta.arrastrando { @apply opacity-40; }
+  .columna.recibiendo { @apply bg-emerald-50 ring-2 ring-emerald-300; }
+
+  .etq { @apply inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide; }
+
+  /* Reserva espacio para que las columnas vacías sigan aceptando el drop */
+  .zona-drop { min-height: 90px; }
+</style>

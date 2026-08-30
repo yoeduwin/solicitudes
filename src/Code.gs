@@ -1,0 +1,112 @@
+/**
+ * Code.gs — Punto de entrada de la Web App y API expuesta a google.script.run.
+ *
+ * Todas las funciones api* devuelven {ok:true, datos:...} o {ok:false, error:'...'}
+ * para que el frontend nunca tenga que adivinar qué pasó.
+ */
+
+function doGet() {
+  var cfg = leerConfig_();
+  var t = HtmlService.createTemplateFromFile('index');
+  t.nombreSistema = texto_(cfg.nombre_sistema) || 'Solicitudes Internas';
+  return t.evaluate()
+    .setTitle(t.nombreSistema)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** Permite componer index.html con styles.html y scripts.html. */
+function include(nombre) {
+  return HtmlService.createHtmlOutputFromFile(nombre).getContent();
+}
+
+/* ------------------------------------------------------------------ */
+/* Carga inicial                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Catálogos + todas las solicitudes en una sola llamada. */
+function apiInicio() {
+  return ejecutar_('apiInicio', function () {
+    var cfg = leerConfig_();
+    return {
+      nombre_sistema: texto_(cfg.nombre_sistema) || 'Solicitudes Internas',
+      usuarios: listarUsuarios_(false),
+      categorias: categorias_(),
+      estados: ESTADOS,
+      estados_admin: ESTADOS_ADMIN,
+      prioridades: PRIORIDADES,
+      max_archivos: limiteArchivos_(),
+      max_mb_archivo: Math.round(limiteBytesArchivo_() / 1048576),
+      hoy: hoyISO_(),
+      solicitudes: listarSolicitudes_()
+    };
+  });
+}
+
+function apiListarSolicitudes() {
+  return ejecutar_('apiListarSolicitudes', function () {
+    return { solicitudes: listarSolicitudes_(), hoy: hoyISO_() };
+  });
+}
+
+function apiDetalle(id) {
+  return ejecutar_('apiDetalle', function () {
+    if (!texto_(id)) throw new Error('Falta el identificador de la solicitud.');
+    return detalleSolicitud_(texto_(id));
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Operaciones                                                         */
+/* ------------------------------------------------------------------ */
+
+function apiCrearSolicitud(payload) {
+  return ejecutar_('apiCrearSolicitud', function () {
+    return crearSolicitud_(payload);
+  });
+}
+
+function apiCambiarEstado(id, estado, actorNombre, esAdmin, motivo) {
+  return ejecutar_('apiCambiarEstado', function () {
+    return cambiarEstado_(texto_(id), estado, actorNombre, esAdmin === true, motivo);
+  });
+}
+
+function apiAgregarComentario(id, payload) {
+  return ejecutar_('apiAgregarComentario', function () {
+    return agregarComentario_(texto_(id), payload);
+  });
+}
+
+/* --- Administración ------------------------------------------------ */
+
+function apiReasignar(id, responsableId, actorNombre) {
+  return ejecutar_('apiReasignar', function () {
+    return reasignar_(texto_(id), responsableId, actorNombre);
+  });
+}
+
+function apiActualizarSolicitud(id, cambios, actorNombre) {
+  return ejecutar_('apiActualizarSolicitud', function () {
+    return actualizarSolicitud_(texto_(id), cambios, actorNombre);
+  });
+}
+
+function apiListarUsuarios() {
+  return ejecutar_('apiListarUsuarios', function () {
+    return { usuarios: listarUsuarios_(true) };
+  });
+}
+
+function apiGuardarUsuario(payload) {
+  return ejecutar_('apiGuardarUsuario', function () {
+    return { usuario: guardarUsuario_(payload), usuarios: listarUsuarios_(true) };
+  });
+}
+
+/** Dispara el resumen diario a mano (útil para probar el trigger). */
+function apiEnviarRecordatorios() {
+  return ejecutar_('apiEnviarRecordatorios', function () {
+    return { resultado: enviarRecordatoriosDiarios() };
+  });
+}

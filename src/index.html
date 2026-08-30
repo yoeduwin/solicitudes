@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><?= nombreSistema ?></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <?!= include('styles'); ?>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+<!-- ============================ Encabezado ============================ -->
+<header class="bg-emerald-900 text-white sticky top-0 z-30 shadow">
+  <div class="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center gap-3">
+    <div class="flex-1 min-w-[200px]">
+      <div class="text-[10px] tracking-[.18em] text-emerald-300">EJECUTIVA AMBIENTAL</div>
+      <h1 class="text-lg font-semibold leading-tight" id="tituloApp"><?= nombreSistema ?></h1>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-emerald-200 hidden sm:block" for="selYo">Soy</label>
+      <select id="selYo" class="rounded-md bg-emerald-800 border border-emerald-700 text-sm px-2 py-1.5 max-w-[190px]">
+        <option value="">Selecciona tu nombre…</option>
+      </select>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button id="btnModo" type="button"
+        class="rounded-md px-3 py-1.5 text-sm font-medium bg-emerald-800 border border-emerald-700 hover:bg-emerald-700">
+        Modo: <span id="txtModo">General</span>
+      </button>
+      <button id="btnDirectorio" type="button"
+        class="hidden rounded-md px-3 py-1.5 text-sm bg-emerald-800 border border-emerald-700 hover:bg-emerald-700">
+        Directorio
+      </button>
+      <button id="btnNueva" type="button"
+        class="rounded-md px-3 py-1.5 text-sm font-semibold bg-white text-emerald-900 hover:bg-emerald-50">
+        + Nueva
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-4 py-5">
+
+  <!-- ============================ Indicadores ============================ -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5" id="kpis">
+    <button data-kpi="abiertas" class="kpi border-slate-200">
+      <span class="kpi-num text-slate-900" id="kpiAbiertas">0</span>
+      <span class="kpi-lbl">Solicitudes abiertas</span>
+    </button>
+    <button data-kpi="hoy" class="kpi border-amber-200">
+      <span class="kpi-num text-amber-600" id="kpiHoy">0</span>
+      <span class="kpi-lbl">Vencen hoy</span>
+    </button>
+    <button data-kpi="vencidas" class="kpi border-red-200">
+      <span class="kpi-num text-red-600" id="kpiVencidas">0</span>
+      <span class="kpi-lbl">Vencidas</span>
+    </button>
+    <button data-kpi="atendidas" class="kpi border-emerald-200">
+      <span class="kpi-num text-emerald-700" id="kpiAtendidas">0</span>
+      <span class="kpi-lbl">Atendidas</span>
+    </button>
+  </section>
+
+  <!-- ============================ Filtros ============================ -->
+  <section class="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+    <div class="flex flex-wrap gap-2 items-center">
+      <input id="fBuscar" type="search" placeholder="Buscar por folio, título, descripción, cliente…"
+        class="flex-1 min-w-[220px] rounded-md border border-slate-300 px-3 py-2 text-sm">
+      <select id="fEstado" class="filtro"><option value="">Todos los estados</option></select>
+      <select id="fResponsable" class="filtro"><option value="">Todo responsable</option></select>
+      <select id="fSolicitante" class="filtro"><option value="">Todo solicitante</option></select>
+      <select id="fCategoria" class="filtro"><option value="">Toda categoría</option></select>
+      <select id="fPrioridad" class="filtro"><option value="">Toda prioridad</option></select>
+      <button id="btnLimpiar" type="button"
+        class="text-sm px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-50">Limpiar</button>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+      <div class="inline-flex rounded-md border border-slate-300 overflow-hidden">
+        <button data-vista="kanban" class="tab-vista">Kanban</button>
+        <button data-vista="lista" class="tab-vista">Lista</button>
+      </div>
+      <div class="inline-flex rounded-md border border-slate-300 overflow-hidden">
+        <button data-alcance="todas" class="tab-alcance">Todas</button>
+        <button data-alcance="asignadas" class="tab-alcance">Asignadas a mí</button>
+        <button data-alcance="mias" class="tab-alcance">Que yo solicité</button>
+      </div>
+      <span id="contador" class="text-xs text-slate-500 ml-auto"></span>
+    </div>
+  </section>
+
+  <!-- ============================ Vistas ============================ -->
+  <div id="cargando" class="text-center py-16 text-slate-500 text-sm">Cargando solicitudes…</div>
+  <section id="vistaKanban" class="hidden grid gap-3 md:grid-cols-2 xl:grid-cols-4"></section>
+  <section id="vistaLista" class="hidden bg-white rounded-lg border border-slate-200 overflow-x-auto"></section>
+</main>
+
+<!-- ============================ Modal: nueva solicitud ============================ -->
+<div id="modalNueva" class="modal hidden">
+  <div class="modal-caja max-w-2xl">
+    <div class="modal-head">
+      <h2 class="font-semibold">Nueva solicitud</h2>
+      <button type="button" class="cerrar-modal text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+    </div>
+    <form id="formNueva" class="modal-body grid gap-3 sm:grid-cols-2">
+      <label class="campo">Solicitante *
+        <select name="solicitante_id" required class="entrada"></select>
+      </label>
+      <label class="campo">Responsable *
+        <select name="responsable_id" required class="entrada"></select>
+      </label>
+      <label class="campo">Categoría *
+        <select name="categoria" required class="entrada"></select>
+      </label>
+      <label class="campo">Prioridad *
+        <select name="prioridad" required class="entrada"></select>
+      </label>
+      <label class="campo sm:col-span-2">Título *
+        <input name="titulo" required maxlength="200" class="entrada" placeholder="Qué se necesita, en una línea">
+      </label>
+      <label class="campo sm:col-span-2">Descripción *
+        <textarea name="descripcion" required rows="4" maxlength="5000" class="entrada"
+          placeholder="Detalle de lo que se solicita, contexto y entregable esperado"></textarea>
+      </label>
+      <label class="campo">Cliente / proyecto <span class="text-slate-400">(opcional)</span>
+        <input name="cliente_proyecto" maxlength="200" class="entrada">
+      </label>
+      <label class="campo">Fecha límite *
+        <input name="fecha_limite" type="date" required class="entrada">
+      </label>
+      <div class="campo sm:col-span-2">
+        <span>Adjuntos <span class="text-slate-400" id="ayudaAdjuntos">(PDF, JPG o PNG)</span></span>
+        <input id="inpArchivos" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          class="entrada file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm">
+        <ul id="listaArchivos" class="text-xs text-slate-600 mt-1 space-y-0.5"></ul>
+      </div>
+      <div class="sm:col-span-2 flex items-center gap-2 pt-1">
+        <button type="submit" class="btn-primario">Crear solicitud</button>
+        <button type="button" class="cerrar-modal btn-secundario">Cancelar</button>
+        <span id="estadoNueva" class="text-sm text-slate-500"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================ Modal: detalle ============================ -->
+<div id="modalDetalle" class="modal hidden">
+  <div class="modal-caja max-w-3xl">
+    <div class="modal-head">
+      <div>
+        <div class="text-xs text-slate-500" id="detFolio">—</div>
+        <h2 class="font-semibold" id="detTitulo">Solicitud</h2>
+      </div>
+      <button type="button" class="cerrar-modal text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+    </div>
+    <div class="modal-body" id="detCuerpo">
+      <div class="text-sm text-slate-500 py-8 text-center">Cargando…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ Modal: directorio ============================ -->
+<div id="modalDirectorio" class="modal hidden">
+  <div class="modal-caja max-w-2xl">
+    <div class="modal-head">
+      <h2 class="font-semibold">Directorio de personas</h2>
+      <button type="button" class="cerrar-modal text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formUsuario" class="grid gap-2 sm:grid-cols-5 items-end bg-slate-50 border border-slate-200 rounded-md p-3 mb-4">
+        <input type="hidden" name="id">
+        <label class="campo sm:col-span-2">Nombre *<input name="nombre" required class="entrada"></label>
+        <label class="campo sm:col-span-2">Correo<input name="correo" type="email" class="entrada"></label>
+        <label class="campo sm:col-span-2">Área<input name="area" class="entrada"></label>
+        <label class="campo sm:col-span-1">Activo
+          <select name="activo" class="entrada"><option value="SI">Sí</option><option value="NO">No</option></select>
+        </label>
+        <div class="sm:col-span-2 flex gap-2">
+          <button type="submit" class="btn-primario w-full">Guardar</button>
+          <button type="button" id="btnNuevoUsuario" class="btn-secundario">Nuevo</button>
+        </div>
+      </form>
+      <div id="estadoDirectorio" class="text-sm text-slate-500 mb-2"></div>
+      <div class="overflow-x-auto"><table class="w-full text-sm" id="tablaUsuarios"></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ Aviso flotante ============================ -->
+<div id="toast" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-md
+     text-sm text-white shadow-lg max-w-[90vw]"></div>
+
+<?!= include('scripts'); ?>
+</body>
+</html>

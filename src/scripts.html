@@ -1,0 +1,903 @@
+<script>
+/* =========================================================================
+ * scripts.html — Lógica del frontend.
+ * Las solicitudes se traen una vez y se mantienen en memoria (APP.solicitudes);
+ * filtros, búsqueda y vistas trabajan sobre ese arreglo sin volver al servidor.
+ * ========================================================================= */
+
+var APP = {
+  solicitudes: [],
+  usuarios: [],
+  usuariosTodos: [],
+  categorias: [],
+  estados: [],
+  estadosAdmin: [],
+  prioridades: [],
+  hoy: '',
+  maxArchivos: 5,
+  maxMb: 5,
+  yo: null,              // objeto usuario seleccionado en "Soy"
+  admin: false,
+  vista: 'kanban',
+  alcance: 'todas',
+  kpi: '',
+  detalleId: null,
+  archivos: []           // adjuntos preparados para la nueva solicitud
+};
+
+var COLUMNAS = ['Pendiente', 'En proceso', 'Atendida', 'Cerrada'];
+
+var COLOR_ESTADO = {
+  'Pendiente':  'bg-slate-100 text-slate-700',
+  'En proceso': 'bg-blue-100 text-blue-700',
+  'Atendida':   'bg-emerald-100 text-emerald-700',
+  'Cerrada':    'bg-slate-200 text-slate-600',
+  'Cancelada':  'bg-slate-100 text-slate-400 line-through'
+};
+
+var COLOR_PRIORIDAD = {
+  'Normal':  'bg-slate-100 text-slate-600',
+  'Alta':    'bg-amber-100 text-amber-800',
+  'Urgente': 'bg-red-100 text-red-700'
+};
+
+/* ------------------------------------------------------------------ */
+/* Utilidades                                                          */
+/* ------------------------------------------------------------------ */
+
+function $(sel, raiz) { return (raiz || document).querySelector(sel); }
+function $$(sel, raiz) { return Array.prototype.slice.call((raiz || document).querySelectorAll(sel)); }
+
+function esc(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fechaCorta(iso) {
+  if (!iso) return '—';
+  var p = String(iso).slice(0, 10).split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+}
+
+function fechaHora(iso) {
+  if (!iso) return '—';
+  var s = String(iso);
+  return fechaCorta(s) + (s.length > 10 ? ' ' + s.slice(11, 16) : '');
+}
+
+var TEMPORIZADOR_TOAST = null;
+function aviso(mensaje, tipo) {
+  var el = $('#toast');
+  var fondo = tipo === 'error' ? 'bg-red-700' : (tipo === 'trabajo' ? 'bg-slate-700' : 'bg-emerald-800');
+  el.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-md text-sm ' +
+                 'text-white shadow-lg max-w-[90vw] ' + fondo;
+  el.textContent = mensaje;
+  clearTimeout(TEMPORIZADOR_TOAST);
+  if (tipo !== 'trabajo') {
+    TEMPORIZADOR_TOAST = setTimeout(function () { el.classList.add('hidden'); }, 4000);
+  }
+}
+function ocultarAviso() { clearTimeout(TEMPORIZADOR_TOAST); $('#toast').classList.add('hidden'); }
+
+/**
+ * Envoltura de google.script.run con promesas.
+ * Rechaza tanto los errores de transporte como los {ok:false} del backend.
+ */
+function llamar(metodo) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (resolver, rechazar) {
+    google.script.run
+      .withSuccessHandler(function (r) {
+        if (r && r.ok) resolver(r.datos);
+        else rechazar(new Error((r && r.error) || 'No se pudo completar la operación.'));
+      })
+      .withFailureHandler(function (e) {
+        rechazar(new Error((e && e.message) || 'Se perdió la comunicación con el servidor.'));
+      })[metodo].apply(null, args);
+  });
+}
+
+function guardarPreferencias() {
+  try {
+    localStorage.setItem('sol_yo', APP.yo ? APP.yo.id : '');
+    localStorage.setItem('sol_admin', APP.admin ? '1' : '');
+  } catch (e) { /* almacenamiento no disponible: no es crítico */ }
+}
+function leerPreferencia(clave) {
+  try { return localStorage.getItem(clave) || ''; } catch (e) { return ''; }
+}
+
+function usuarioPorId(id) {
+  for (var i = 0; i < APP.usuariosTodos.length; i++) {
+    if (APP.usuariosTodos[i].id === id) return APP.usuariosTodos[i];
+  }
+  return null;
+}
+
+/** Nombre a usar como "actor" en historial y correos. */
+function actor() { return APP.yo ? APP.yo.nombre : (APP.admin ? 'Administración' : 'Sin identificar'); }
+
+function exigeIdentidad() {
+  if (!APP.yo) {
+    aviso('Selecciona tu nombre en "Soy" antes de continuar.', 'error');
+    $('#selYo').focus();
+    return false;
+  }
+  return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Arranque                                                            */
+/* ------------------------------------------------------------------ */
+
+document.addEventListener('DOMContentLoaded', function () {
+  conectarEventos();
+  cargarInicio();
+});
+
+function cargarInicio() {
+  llamar('apiInicio').then(function (d) {
+    APP.usuarios = d.usuarios || [];
+    APP.usuariosTodos = APP.usuarios.slice();
+    APP.categorias = d.categorias || [];
+    APP.estados = d.estados || [];
+    APP.estadosAdmin = d.estados_admin || [];
+    APP.prioridades = d.prioridades || [];
+    APP.solicitudes = d.solicitudes || [];
+    APP.hoy = d.hoy;
+    APP.maxArchivos = d.max_archivos || 5;
+    APP.maxMb = d.max_mb_archivo || 5;
+    if (d.nombre_sistema) { $('#tituloApp').textContent = d.nombre_sistema; }
+    $('#ayudaAdjuntos').textContent = '(PDF, JPG o PNG · máx. ' + APP.maxArchivos +
+      ' archivos de ' + APP.maxMb + ' MB)';
+
+    llenarCatalogos();
+    restaurarPreferencias();
+    $('#cargando').classList.add('hidden');
+    render();
+  }).catch(function (e) {
+    $('#cargando').innerHTML = '<div class="text-red-700">No se pudo cargar la información: ' +
+      esc(e.message) + '</div>';
+  });
+}
+
+function opciones(lista, valorInicial, etiqueta) {
+  var html = '<option value="">' + esc(etiqueta) + '</option>';
+  lista.forEach(function (v) {
+    var val = typeof v === 'string' ? v : v.id;
+    var txt = typeof v === 'string' ? v : v.nombre + (v.area ? ' · ' + v.area : '');
+    html += '<option value="' + esc(val) + '"' + (val === valorInicial ? ' selected' : '') + '>' + esc(txt) + '</option>';
+  });
+  return html;
+}
+
+function llenarCatalogos() {
+  var nombres = APP.usuarios.map(function (u) { return u.nombre; });
+
+  $('#selYo').innerHTML = opciones(APP.usuarios, '', 'Selecciona tu nombre…');
+  $('#fEstado').innerHTML = opciones(APP.estados, '', 'Todos los estados');
+  $('#fResponsable').innerHTML = opciones(nombres, '', 'Todo responsable');
+  $('#fSolicitante').innerHTML = opciones(nombres, '', 'Todo solicitante');
+  $('#fCategoria').innerHTML = opciones(APP.categorias, '', 'Toda categoría');
+  $('#fPrioridad').innerHTML = opciones(APP.prioridades, '', 'Toda prioridad');
+
+  var f = $('#formNueva');
+  f.solicitante_id.innerHTML = opciones(APP.usuarios, '', 'Selecciona…');
+  f.responsable_id.innerHTML = opciones(APP.usuarios, '', 'Selecciona…');
+  f.categoria.innerHTML = opciones(APP.categorias, '', 'Selecciona…');
+  f.prioridad.innerHTML = opciones(APP.prioridades, 'Normal', 'Selecciona…');
+  f.prioridad.value = 'Normal';
+}
+
+function restaurarPreferencias() {
+  var yoId = leerPreferencia('sol_yo');
+  if (yoId && usuarioPorId(yoId)) {
+    APP.yo = usuarioPorId(yoId);
+    $('#selYo').value = yoId;
+  }
+  APP.admin = leerPreferencia('sol_admin') === '1';
+  aplicarModo();
+  marcarActivos();
+}
+
+/* ------------------------------------------------------------------ */
+/* Eventos generales                                                   */
+/* ------------------------------------------------------------------ */
+
+function conectarEventos() {
+  $('#selYo').addEventListener('change', function () {
+    APP.yo = usuarioPorId(this.value);
+    guardarPreferencias();
+    if (APP.yo) {
+      var f = $('#formNueva');
+      if (!f.solicitante_id.value) f.solicitante_id.value = APP.yo.id;
+    }
+    render();
+  });
+
+  $('#btnModo').addEventListener('click', function () {
+    APP.admin = !APP.admin;
+    guardarPreferencias();
+    aplicarModo();
+    if (APP.detalleId) abrirDetalle(APP.detalleId);
+    render();
+  });
+
+  $('#btnNueva').addEventListener('click', abrirNueva);
+  $('#btnDirectorio').addEventListener('click', abrirDirectorio);
+  $('#btnLimpiar').addEventListener('click', function () {
+    ['#fBuscar', '#fEstado', '#fResponsable', '#fSolicitante', '#fCategoria', '#fPrioridad']
+      .forEach(function (s) { $(s).value = ''; });
+    APP.kpi = '';
+    render();
+  });
+
+  ['#fBuscar', '#fEstado', '#fResponsable', '#fSolicitante', '#fCategoria', '#fPrioridad']
+    .forEach(function (s) { $(s).addEventListener('input', render); });
+
+  $$('[data-vista]').forEach(function (b) {
+    b.addEventListener('click', function () { APP.vista = b.dataset.vista; marcarActivos(); render(); });
+  });
+  $$('[data-alcance]').forEach(function (b) {
+    b.addEventListener('click', function () { APP.alcance = b.dataset.alcance; marcarActivos(); render(); });
+  });
+  $$('[data-kpi]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      APP.kpi = (APP.kpi === b.dataset.kpi) ? '' : b.dataset.kpi;
+      render();
+    });
+  });
+
+  $$('.cerrar-modal').forEach(function (b) {
+    b.addEventListener('click', function () { cerrarModales(); });
+  });
+  $$('.modal').forEach(function (m) {
+    m.addEventListener('mousedown', function (ev) { if (ev.target === m) cerrarModales(); });
+  });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') cerrarModales(); });
+
+  $('#formNueva').addEventListener('submit', enviarNueva);
+  $('#inpArchivos').addEventListener('change', prepararArchivos);
+  $('#formUsuario').addEventListener('submit', guardarUsuario);
+  $('#btnNuevoUsuario').addEventListener('click', function () { cargarFormularioUsuario(null); });
+}
+
+function aplicarModo() {
+  $('#txtModo').textContent = APP.admin ? 'Administración' : 'General';
+  $('#btnModo').classList.toggle('bg-white', APP.admin);
+  $('#btnModo').classList.toggle('text-emerald-900', APP.admin);
+  $('#btnDirectorio').classList.toggle('hidden', !APP.admin);
+}
+
+function marcarActivos() {
+  $$('[data-vista]').forEach(function (b) { b.classList.toggle('activo', b.dataset.vista === APP.vista); });
+  $$('[data-alcance]').forEach(function (b) { b.classList.toggle('activo', b.dataset.alcance === APP.alcance); });
+}
+
+function cerrarModales() {
+  $$('.modal').forEach(function (m) { m.classList.add('hidden'); });
+  APP.detalleId = null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Filtrado y render                                                   */
+/* ------------------------------------------------------------------ */
+
+function filtradas() {
+  var q = $('#fBuscar').value.trim().toLowerCase();
+  var fe = $('#fEstado').value, fr = $('#fResponsable').value, fs = $('#fSolicitante').value;
+  var fc = $('#fCategoria').value, fp = $('#fPrioridad').value;
+  var yo = APP.yo ? APP.yo.nombre : null;
+
+  return APP.solicitudes.filter(function (s) {
+    if (fe && s.estado !== fe) return false;
+    if (fr && s.responsable_nombre !== fr) return false;
+    if (fs && s.solicitante_nombre !== fs) return false;
+    if (fc && s.categoria !== fc) return false;
+    if (fp && s.prioridad !== fp) return false;
+
+    if (APP.alcance === 'asignadas' && (!yo || s.responsable_nombre !== yo)) return false;
+    if (APP.alcance === 'mias' && (!yo || s.solicitante_nombre !== yo)) return false;
+
+    if (APP.kpi === 'abiertas' && ['Cerrada', 'Cancelada', 'Atendida'].indexOf(s.estado) !== -1) return false;
+    if (APP.kpi === 'vencidas' && !s.vencida) return false;
+    if (APP.kpi === 'hoy' && !s.vence_hoy) return false;
+    if (APP.kpi === 'atendidas' && s.estado !== 'Atendida') return false;
+
+    if (q) {
+      var heno = [s.folio, s.titulo, s.descripcion, s.cliente_proyecto, s.responsable_nombre,
+        s.solicitante_nombre, s.categoria].join(' ').toLowerCase();
+      if (heno.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  renderIndicadores();
+  var lista = filtradas();
+  $('#contador').textContent = lista.length + ' de ' + APP.solicitudes.length + ' solicitudes';
+  $$('[data-kpi]').forEach(function (b) { b.classList.toggle('activo', b.dataset.kpi === APP.kpi); });
+
+  $('#vistaKanban').classList.toggle('hidden', APP.vista !== 'kanban');
+  $('#vistaLista').classList.toggle('hidden', APP.vista !== 'lista');
+  if (APP.vista === 'kanban') renderKanban(lista); else renderLista(lista);
+}
+
+function renderIndicadores() {
+  var abiertas = 0, hoy = 0, vencidas = 0, atendidas = 0;
+  APP.solicitudes.forEach(function (s) {
+    if (['Cerrada', 'Cancelada', 'Atendida'].indexOf(s.estado) === -1) abiertas++;
+    if (s.vence_hoy) hoy++;
+    if (s.vencida) vencidas++;
+    if (s.estado === 'Atendida') atendidas++;
+  });
+  $('#kpiAbiertas').textContent = abiertas;
+  $('#kpiHoy').textContent = hoy;
+  $('#kpiVencidas').textContent = vencidas;
+  $('#kpiAtendidas').textContent = atendidas;
+}
+
+function etiquetaEstado(s) {
+  var html = '<span class="etq ' + COLOR_ESTADO[s.estado] + '">' + esc(s.estado) + '</span>';
+  if (s.vencida) html += ' <span class="etq bg-red-600 text-white">Vencida</span>';
+  else if (s.vence_hoy) html += ' <span class="etq bg-amber-500 text-white">Vence hoy</span>';
+  return html;
+}
+
+function renderKanban(lista) {
+  var cont = $('#vistaKanban');
+  cont.innerHTML = COLUMNAS.map(function (estado) {
+    var items = lista.filter(function (s) { return s.estado === estado; });
+    return '' +
+      '<div class="columna bg-slate-50 border border-slate-200 rounded-lg p-2" data-estado="' + esc(estado) + '">' +
+        '<div class="flex items-center justify-between px-1 pb-2">' +
+          '<span class="text-sm font-semibold text-slate-700">' + esc(estado) + '</span>' +
+          '<span class="text-xs text-slate-500">' + items.length + '</span>' +
+        '</div>' +
+        '<div class="zona-drop space-y-2">' +
+          (items.length ? items.map(tarjeta).join('')
+            : '<div class="text-xs text-slate-400 text-center py-6">Sin solicitudes</div>') +
+        '</div>' +
+      '</div>';
+  }).join('');
+
+  // Las solicitudes canceladas no tienen columna: se muestran aparte si el filtro las incluye.
+  var canceladas = lista.filter(function (s) { return s.estado === 'Cancelada'; });
+  if (canceladas.length) {
+    var extra = document.createElement('div');
+    extra.className = 'md:col-span-2 xl:col-span-4 bg-white border border-slate-200 rounded-lg p-3';
+    extra.innerHTML = '<div class="text-sm font-semibold text-slate-500 mb-2">Canceladas (' +
+      canceladas.length + ')</div><div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">' +
+      canceladas.map(tarjeta).join('') + '</div>';
+    cont.appendChild(extra);
+  }
+
+  conectarTarjetas();
+  conectarArrastre();
+}
+
+function tarjeta(s) {
+  return '' +
+    '<article class="tarjeta' + (s.vencida ? ' vencida' : '') + '" data-id="' + esc(s.id) + '"' +
+      ' draggable="true" tabindex="0">' +
+      '<div class="flex items-center justify-between gap-2">' +
+        '<span class="text-[11px] font-mono text-slate-500">' + esc(s.folio) + '</span>' +
+        '<span class="etq ' + COLOR_PRIORIDAD[s.prioridad] + '">' + esc(s.prioridad) + '</span>' +
+      '</div>' +
+      '<h3 class="text-sm font-semibold text-slate-800 mt-1 leading-snug">' + esc(s.titulo) + '</h3>' +
+      (s.cliente_proyecto
+        ? '<div class="text-xs text-slate-500 mt-0.5">' + esc(s.cliente_proyecto) + '</div>' : '') +
+      '<div class="text-xs text-slate-600 mt-2 space-y-0.5">' +
+        '<div><span class="text-slate-400">Responsable:</span> ' + esc(s.responsable_nombre) + '</div>' +
+        '<div><span class="text-slate-400">Solicita:</span> ' + esc(s.solicitante_nombre) + '</div>' +
+      '</div>' +
+      '<div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100">' +
+        '<span class="text-xs ' + (s.vencida ? 'text-red-700 font-semibold' : 'text-slate-500') + '">' +
+          fechaCorta(s.fecha_limite) + '</span>' +
+        (s.vencida ? '<span class="etq bg-red-600 text-white">Vencida</span>'
+          : (s.vence_hoy ? '<span class="etq bg-amber-500 text-white">Hoy</span>' : '')) +
+      '</div>' +
+    '</article>';
+}
+
+function renderLista(lista) {
+  if (!lista.length) {
+    $('#vistaLista').innerHTML = '<div class="p-10 text-center text-sm text-slate-500">' +
+      'No hay solicitudes que coincidan con los filtros.</div>';
+    return;
+  }
+  var filas = lista.map(function (s) {
+    return '<tr class="fila-lista border-t border-slate-100 hover:bg-slate-50 cursor-pointer" data-id="' + esc(s.id) + '">' +
+      '<td class="px-3 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">' + esc(s.folio) + '</td>' +
+      '<td class="px-3 py-2">' +
+        '<div class="font-medium text-slate-800">' + esc(s.titulo) + '</div>' +
+        '<div class="text-xs text-slate-500">' + esc(s.categoria) +
+        (s.cliente_proyecto ? ' · ' + esc(s.cliente_proyecto) : '') + '</div></td>' +
+      '<td class="px-3 py-2 text-sm whitespace-nowrap">' + esc(s.responsable_nombre) + '</td>' +
+      '<td class="px-3 py-2 text-sm whitespace-nowrap">' + esc(s.solicitante_nombre) + '</td>' +
+      '<td class="px-3 py-2 text-sm whitespace-nowrap ' + (s.vencida ? 'text-red-700 font-semibold' : '') + '">' +
+        fechaCorta(s.fecha_limite) + '</td>' +
+      '<td class="px-3 py-2 whitespace-nowrap"><span class="etq ' + COLOR_PRIORIDAD[s.prioridad] + '">' +
+        esc(s.prioridad) + '</span></td>' +
+      '<td class="px-3 py-2 whitespace-nowrap">' + etiquetaEstado(s) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  $('#vistaLista').innerHTML = '<table class="w-full text-sm min-w-[860px]">' +
+    '<thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>' +
+      '<th class="px-3 py-2 text-left">Folio</th><th class="px-3 py-2 text-left">Título</th>' +
+      '<th class="px-3 py-2 text-left">Responsable</th><th class="px-3 py-2 text-left">Solicitante</th>' +
+      '<th class="px-3 py-2 text-left">Fecha límite</th><th class="px-3 py-2 text-left">Prioridad</th>' +
+      '<th class="px-3 py-2 text-left">Estado</th>' +
+    '</tr></thead><tbody>' + filas + '</tbody></table>';
+
+  $$('.fila-lista').forEach(function (tr) {
+    tr.addEventListener('click', function () { abrirDetalle(tr.dataset.id); });
+  });
+}
+
+function conectarTarjetas() {
+  $$('.tarjeta').forEach(function (el) {
+    el.addEventListener('click', function () { abrirDetalle(el.dataset.id); });
+    el.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirDetalle(el.dataset.id); }
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Drag & drop (alternativa, nunca la única forma de cambiar estado)   */
+/* ------------------------------------------------------------------ */
+
+function conectarArrastre() {
+  var arrastrada = null;
+
+  $$('.tarjeta').forEach(function (el) {
+    el.addEventListener('dragstart', function (ev) {
+      arrastrada = el;
+      el.classList.add('arrastrando');
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', el.dataset.id);
+    });
+    el.addEventListener('dragend', function () {
+      el.classList.remove('arrastrando');
+      arrastrada = null;
+    });
+  });
+
+  $$('.columna').forEach(function (col) {
+    col.addEventListener('dragover', function (ev) {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      col.classList.add('recibiendo');
+    });
+    col.addEventListener('dragleave', function () { col.classList.remove('recibiendo'); });
+    col.addEventListener('drop', function (ev) {
+      ev.preventDefault();
+      col.classList.remove('recibiendo');
+      var id = ev.dataTransfer.getData('text/plain');
+      var destino = col.dataset.estado;
+      if (!id || !destino) return;
+      // El movimiento NO se da por hecho: se vuelve a dibujar solo cuando
+      // el backend confirma el cambio.
+      cambiarEstado(id, destino);
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Operaciones sobre solicitudes                                       */
+/* ------------------------------------------------------------------ */
+
+/** Reemplaza una solicitud en memoria y refresca lo que está en pantalla. */
+function refrescarEnMemoria(s) {
+  var reemplazada = false;
+  for (var i = 0; i < APP.solicitudes.length; i++) {
+    if (APP.solicitudes[i].id === s.id) { APP.solicitudes[i] = s; reemplazada = true; break; }
+  }
+  if (!reemplazada) APP.solicitudes.unshift(s);
+  render();
+}
+
+function cambiarEstado(id, estado) {
+  if (!exigeIdentidad()) return;
+  var actual = APP.solicitudes.filter(function (s) { return s.id === id; })[0];
+  if (actual && actual.estado === estado) return;
+
+  if (APP.estadosAdmin.indexOf(estado) !== -1 && !APP.admin) {
+    aviso('Solo Administración puede marcar la solicitud como ' + estado + '.', 'error');
+    return;
+  }
+  var motivo = '';
+  if (estado === 'Cancelada') {
+    motivo = prompt('Motivo de la cancelación (opcional):') || '';
+  }
+
+  aviso('Guardando…', 'trabajo');
+  llamar('apiCambiarEstado', id, estado, actor(), APP.admin, motivo).then(function (r) {
+    refrescarEnMemoria(r.solicitud);
+    if (APP.detalleId === id) pintarDetalle(null, id);
+    if (r.aviso) aviso(r.aviso, 'error');
+    else aviso('Estado actualizado a ' + estado + (r.correo_enviado ? '. Correo enviado.' : '.'));
+  }).catch(function (e) {
+    aviso('No se pudo guardar: ' + e.message, 'error');
+    render(); // deshace cualquier expectativa visual del arrastre
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Nueva solicitud                                                     */
+/* ------------------------------------------------------------------ */
+
+function abrirNueva() {
+  var f = $('#formNueva');
+  f.reset();
+  APP.archivos = [];
+  $('#listaArchivos').innerHTML = '';
+  $('#estadoNueva').textContent = '';
+  f.prioridad.value = 'Normal';
+  if (APP.yo) f.solicitante_id.value = APP.yo.id;
+  $('#modalNueva').classList.remove('hidden');
+  f.responsable_id.focus();
+}
+
+/** Lee los archivos elegidos a base64, validando cantidad, tipo y peso. */
+function prepararArchivos(ev) {
+  var permitidos = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+  var archivos = Array.prototype.slice.call(ev.target.files || []);
+  APP.archivos = [];
+  $('#listaArchivos').innerHTML = '';
+
+  if (archivos.length > APP.maxArchivos) {
+    aviso('Máximo ' + APP.maxArchivos + ' archivos.', 'error');
+    ev.target.value = '';
+    return;
+  }
+  archivos.forEach(function (a) {
+    if (permitidos.indexOf(a.type) === -1) {
+      aviso('"' + a.name + '" no es PDF, JPG ni PNG.', 'error');
+      return;
+    }
+    if (a.size > APP.maxMb * 1024 * 1024) {
+      aviso('"' + a.name + '" excede ' + APP.maxMb + ' MB.', 'error');
+      return;
+    }
+    var lector = new FileReader();
+    lector.onload = function () {
+      APP.archivos.push({
+        nombre: a.name,
+        tipo: a.type,
+        datos: String(lector.result).split(',')[1] // quita el encabezado data:
+      });
+      var li = document.createElement('li');
+      li.textContent = '• ' + a.name + ' (' + Math.round(a.size / 1024) + ' KB)';
+      $('#listaArchivos').appendChild(li);
+    };
+    lector.onerror = function () { aviso('No se pudo leer "' + a.name + '".', 'error'); };
+    lector.readAsDataURL(a);
+  });
+}
+
+function enviarNueva(ev) {
+  ev.preventDefault();
+  var f = ev.target;
+  var boton = f.querySelector('button[type=submit]');
+  var payload = {
+    solicitante_id: f.solicitante_id.value,
+    responsable_id: f.responsable_id.value,
+    categoria: f.categoria.value,
+    prioridad: f.prioridad.value,
+    titulo: f.titulo.value,
+    descripcion: f.descripcion.value,
+    cliente_proyecto: f.cliente_proyecto.value,
+    fecha_limite: f.fecha_limite.value,
+    archivos: APP.archivos
+  };
+
+  boton.disabled = true;
+  $('#estadoNueva').textContent = 'Guardando…';
+  aviso('Guardando…', 'trabajo');
+
+  llamar('apiCrearSolicitud', payload).then(function (r) {
+    APP.solicitudes.unshift(r.solicitud);
+    render();
+    cerrarModales();
+    if (r.aviso) aviso(r.solicitud.folio + ' creada. ' + r.aviso, 'error');
+    else aviso('Solicitud ' + r.solicitud.folio + ' creada' +
+      (r.correo_enviado ? '. Correo enviado.' : '.'));
+  }).catch(function (e) {
+    $('#estadoNueva').textContent = '';
+    aviso('No se pudo guardar: ' + e.message, 'error');
+  }).then(function () {
+    boton.disabled = false;
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Detalle de la solicitud                                             */
+/* ------------------------------------------------------------------ */
+
+function abrirDetalle(id) {
+  APP.detalleId = id;
+  $('#modalDetalle').classList.remove('hidden');
+  $('#detCuerpo').innerHTML = '<div class="text-sm text-slate-500 py-8 text-center">Cargando…</div>';
+  pintarDetalle(null, id);
+}
+
+function pintarDetalle(datos, id) {
+  if (!datos) {
+    llamar('apiDetalle', id).then(function (d) {
+      if (APP.detalleId !== id) return; // el usuario ya cerró o cambió de solicitud
+      refrescarEnMemoria(d.solicitud);
+      pintarDetalle(d, id);
+    }).catch(function (e) {
+      $('#detCuerpo').innerHTML = '<div class="text-red-700 text-sm">' + esc(e.message) + '</div>';
+    });
+    return;
+  }
+
+  var s = datos.solicitud;
+  $('#detFolio').textContent = s.folio + ' · ' + s.categoria;
+  $('#detTitulo').textContent = s.titulo;
+
+  var datosHtml = [
+    ['Estado', etiquetaEstado(s)],
+    ['Prioridad', '<span class="etq ' + COLOR_PRIORIDAD[s.prioridad] + '">' + esc(s.prioridad) + '</span>'],
+    ['Solicitante', esc(s.solicitante_nombre) + (s.solicitante_email
+      ? ' <span class="text-slate-400">' + esc(s.solicitante_email) + '</span>' : '')],
+    ['Responsable', esc(s.responsable_nombre) + (s.responsable_email
+      ? ' <span class="text-slate-400">' + esc(s.responsable_email) + '</span>'
+      : ' <span class="text-red-600">(sin correo registrado)</span>')],
+    ['Cliente / proyecto', esc(s.cliente_proyecto || '—')],
+    ['Fecha límite', '<span class="' + (s.vencida ? 'text-red-700 font-semibold' : '') + '">' +
+      fechaCorta(s.fecha_limite) + '</span>'],
+    ['Creada', fechaHora(s.created_at)],
+    ['Última actualización', fechaHora(s.updated_at)]
+  ].map(function (p) {
+    return '<div class="flex gap-2 py-1 border-b border-slate-100 last:border-0">' +
+      '<div class="w-40 shrink-0 text-xs uppercase tracking-wide text-slate-400 pt-0.5">' + esc(p[0]) + '</div>' +
+      '<div class="text-sm">' + p[1] + '</div></div>';
+  }).join('');
+
+  var adjuntosHtml = datos.adjuntos.length
+    ? datos.adjuntos.map(function (a) {
+        return '<a href="' + esc(a.url) + '" target="_blank" rel="noopener" ' +
+          'class="inline-flex items-center gap-1 text-sm text-emerald-800 underline mr-3">' +
+          esc(a.nombre) + '</a>';
+      }).join('')
+    : '<span class="text-sm text-slate-400">Sin adjuntos.</span>';
+
+  var comentariosHtml = datos.comentarios.length
+    ? datos.comentarios.map(function (c) {
+        return '<div class="border-l-2 border-slate-200 pl-3 py-1">' +
+          '<div class="text-xs text-slate-500">' + esc(c.autor_nombre) + ' · ' + fechaHora(c.fecha) + '</div>' +
+          '<div class="text-sm whitespace-pre-wrap">' + esc(c.comentario) + '</div></div>';
+      }).join('')
+    : '<div class="text-sm text-slate-400">Aún no hay comentarios.</div>';
+
+  var historialHtml = datos.historial.map(function (h) {
+    return '<li class="text-xs text-slate-600 py-1 border-b border-slate-100 last:border-0">' +
+      '<span class="text-slate-400">' + fechaHora(h.fecha) + '</span> · ' +
+      '<strong>' + esc(h.accion) + '</strong> · ' + esc(h.actor) +
+      (h.detalle ? '<div class="text-slate-500">' + esc(h.detalle) + '</div>' : '') + '</li>';
+  }).join('') || '<li class="text-xs text-slate-400">Sin movimientos.</li>';
+
+  var estadosDisponibles = APP.estados.filter(function (e) {
+    return APP.admin || APP.estadosAdmin.indexOf(e) === -1;
+  });
+
+  var accionesAdmin = APP.admin ? '' +
+    '<div class="mt-4 pt-4 border-t border-slate-200">' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Administración</div>' +
+      '<div class="flex flex-wrap gap-2 items-center">' +
+        '<select id="detReasignar" class="filtro">' + opciones(APP.usuarios, '', 'Reasignar a…') + '</select>' +
+        '<button id="btnReasignar" type="button" class="btn-secundario">Reasignar</button>' +
+        '<button id="btnCerrar" type="button" class="btn-secundario">Cerrar solicitud</button>' +
+        '<button id="btnCancelar" type="button" class="btn-secundario text-red-700">Cancelar solicitud</button>' +
+        '<button id="btnEditar" type="button" class="btn-secundario">Editar datos</button>' +
+      '</div>' +
+      '<div id="cajaEdicion" class="hidden mt-3 grid gap-2 sm:grid-cols-2 bg-slate-50 border border-slate-200 rounded-md p-3">' +
+        '<label class="campo sm:col-span-2">Título<input id="edTitulo" class="entrada" value="' + esc(s.titulo) + '"></label>' +
+        '<label class="campo sm:col-span-2">Descripción<textarea id="edDescripcion" rows="3" class="entrada">' +
+          esc(s.descripcion) + '</textarea></label>' +
+        '<label class="campo">Categoría<select id="edCategoria" class="entrada">' +
+          opciones(APP.categorias, s.categoria, 'Selecciona…') + '</select></label>' +
+        '<label class="campo">Prioridad<select id="edPrioridad" class="entrada">' +
+          opciones(APP.prioridades, s.prioridad, 'Selecciona…') + '</select></label>' +
+        '<label class="campo">Cliente / proyecto<input id="edCliente" class="entrada" value="' +
+          esc(s.cliente_proyecto) + '"></label>' +
+        '<label class="campo">Fecha límite<input id="edFecha" type="date" class="entrada" value="' +
+          esc(s.fecha_limite) + '"></label>' +
+        '<div class="sm:col-span-2"><button id="btnGuardarEdicion" type="button" class="btn-primario">Guardar cambios</button></div>' +
+      '</div>' +
+    '</div>' : '';
+
+  $('#detCuerpo').innerHTML = '' +
+    datosHtml +
+    '<div class="mt-4">' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400">Descripción</div>' +
+      '<div class="text-sm whitespace-pre-wrap mt-1 bg-slate-50 border border-slate-200 rounded-md p-3">' +
+        esc(s.descripcion) + '</div>' +
+    '</div>' +
+    '<div class="mt-4">' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-1">Adjuntos</div>' + adjuntosHtml +
+    '</div>' +
+
+    '<div class="mt-4 pt-4 border-t border-slate-200">' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Cambiar estado</div>' +
+      '<div class="flex flex-wrap gap-2 items-center">' +
+        '<select id="detEstado" class="filtro">' +
+          estadosDisponibles.map(function (e) {
+            return '<option value="' + esc(e) + '"' + (e === s.estado ? ' selected' : '') + '>' + esc(e) + '</option>';
+          }).join('') +
+        '</select>' +
+        '<button id="btnAplicarEstado" type="button" class="btn-primario">Aplicar</button>' +
+      '</div>' +
+    '</div>' +
+
+    accionesAdmin +
+
+    '<div class="mt-4 pt-4 border-t border-slate-200">' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Comentarios</div>' +
+      '<div class="space-y-2 mb-3">' + comentariosHtml + '</div>' +
+      '<textarea id="txtComentario" rows="3" class="entrada" placeholder="Escribe un comentario…"></textarea>' +
+      '<div class="flex flex-wrap items-center gap-3 mt-2">' +
+        '<label class="flex items-center gap-2 text-sm">' +
+          '<input id="chkNotificar" type="checkbox" class="rounded border-slate-300"> Notificar por correo</label>' +
+        '<button id="btnComentar" type="button" class="btn-primario">Agregar comentario</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="mt-4 pt-4 border-t border-slate-200">' +
+      '<div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Historial</div>' +
+      '<ul>' + historialHtml + '</ul>' +
+    '</div>';
+
+  conectarDetalle(s);
+}
+
+function conectarDetalle(s) {
+  $('#btnAplicarEstado').addEventListener('click', function () {
+    cambiarEstado(s.id, $('#detEstado').value);
+  });
+
+  $('#btnComentar').addEventListener('click', function () {
+    if (!exigeIdentidad()) return;
+    var texto = $('#txtComentario').value.trim();
+    if (!texto) { aviso('El comentario está vacío.', 'error'); return; }
+    var boton = this;
+    boton.disabled = true;
+    aviso('Guardando…', 'trabajo');
+    llamar('apiAgregarComentario', s.id, {
+      autor_id: APP.yo.id, comentario: texto, notificar: $('#chkNotificar').checked
+    }).then(function (r) {
+      refrescarEnMemoria(r.solicitud);
+      pintarDetalle(null, s.id);
+      if (r.aviso) aviso(r.aviso, 'error');
+      else aviso('Comentario agregado' + (r.correo_enviado ? '. Correo enviado.' : '.'));
+    }).catch(function (e) {
+      aviso('No se pudo guardar: ' + e.message, 'error');
+    }).then(function () { boton.disabled = false; });
+  });
+
+  if (!APP.admin) return;
+
+  $('#btnReasignar').addEventListener('click', function () {
+    var destino = $('#detReasignar').value;
+    if (!destino) { aviso('Selecciona al nuevo responsable.', 'error'); return; }
+    aviso('Guardando…', 'trabajo');
+    llamar('apiReasignar', s.id, destino, actor()).then(function (r) {
+      refrescarEnMemoria(r.solicitud);
+      pintarDetalle(null, s.id);
+      if (r.aviso) aviso(r.aviso, 'error');
+      else aviso('Reasignada a ' + r.solicitud.responsable_nombre +
+        (r.correo_enviado ? '. Correo enviado.' : '.'));
+    }).catch(function (e) { aviso('No se pudo reasignar: ' + e.message, 'error'); });
+  });
+
+  $('#btnCerrar').addEventListener('click', function () {
+    if (confirm('¿Cerrar la solicitud ' + s.folio + '?')) cambiarEstado(s.id, 'Cerrada');
+  });
+  $('#btnCancelar').addEventListener('click', function () {
+    if (confirm('¿Cancelar la solicitud ' + s.folio + '?')) cambiarEstado(s.id, 'Cancelada');
+  });
+  $('#btnEditar').addEventListener('click', function () {
+    $('#cajaEdicion').classList.toggle('hidden');
+  });
+  $('#btnGuardarEdicion').addEventListener('click', function () {
+    var cambios = {
+      titulo: $('#edTitulo').value,
+      descripcion: $('#edDescripcion').value,
+      categoria: $('#edCategoria').value,
+      prioridad: $('#edPrioridad').value,
+      cliente_proyecto: $('#edCliente').value,
+      fecha_limite: $('#edFecha').value
+    };
+    aviso('Guardando…', 'trabajo');
+    llamar('apiActualizarSolicitud', s.id, cambios, actor()).then(function (r) {
+      refrescarEnMemoria(r.solicitud);
+      pintarDetalle(null, s.id);
+      aviso(r.aviso || 'Cambios guardados.');
+    }).catch(function (e) { aviso('No se pudo guardar: ' + e.message, 'error'); });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Directorio (solo Administración)                                    */
+/* ------------------------------------------------------------------ */
+
+function abrirDirectorio() {
+  $('#modalDirectorio').classList.remove('hidden');
+  $('#estadoDirectorio').textContent = 'Cargando…';
+  cargarFormularioUsuario(null);
+  llamar('apiListarUsuarios').then(function (d) {
+    APP.usuariosTodos = d.usuarios;
+    pintarUsuarios();
+    $('#estadoDirectorio').textContent = '';
+  }).catch(function (e) {
+    $('#estadoDirectorio').textContent = 'No se pudo cargar: ' + e.message;
+  });
+}
+
+function pintarUsuarios() {
+  var filas = APP.usuariosTodos.map(function (u) {
+    return '<tr class="border-t border-slate-100">' +
+      '<td class="px-2 py-1.5">' + esc(u.nombre) + '</td>' +
+      '<td class="px-2 py-1.5 text-slate-500">' + esc(u.correo || '—') + '</td>' +
+      '<td class="px-2 py-1.5 text-slate-500">' + esc(u.area || '—') + '</td>' +
+      '<td class="px-2 py-1.5">' + (u.activo
+        ? '<span class="etq bg-emerald-100 text-emerald-700">Activo</span>'
+        : '<span class="etq bg-slate-100 text-slate-500">Inactivo</span>') + '</td>' +
+      '<td class="px-2 py-1.5 text-right">' +
+        '<button type="button" class="editar-usuario text-emerald-800 underline text-xs" data-id="' +
+        esc(u.id) + '">Editar</button></td></tr>';
+  }).join('');
+
+  $('#tablaUsuarios').innerHTML =
+    '<thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr>' +
+      '<th class="px-2 py-1.5 text-left">Nombre</th><th class="px-2 py-1.5 text-left">Correo</th>' +
+      '<th class="px-2 py-1.5 text-left">Área</th><th class="px-2 py-1.5 text-left">Estado</th>' +
+      '<th></th></tr></thead><tbody>' + filas + '</tbody>';
+
+  $$('.editar-usuario').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var u = APP.usuariosTodos.filter(function (x) { return x.id === b.dataset.id; })[0];
+      cargarFormularioUsuario(u);
+    });
+  });
+}
+
+function cargarFormularioUsuario(u) {
+  var f = $('#formUsuario');
+  f.id.value = u ? u.id : '';
+  f.nombre.value = u ? u.nombre : '';
+  f.correo.value = u ? u.correo : '';
+  f.area.value = u ? u.area : '';
+  f.activo.value = (!u || u.activo) ? 'SI' : 'NO';
+}
+
+function guardarUsuario(ev) {
+  ev.preventDefault();
+  var f = ev.target;
+  $('#estadoDirectorio').textContent = 'Guardando…';
+  llamar('apiGuardarUsuario', {
+    id: f.id.value, nombre: f.nombre.value, correo: f.correo.value,
+    area: f.area.value, activo: f.activo.value === 'SI'
+  }).then(function (r) {
+    APP.usuariosTodos = r.usuarios;
+    APP.usuarios = r.usuarios.filter(function (u) { return u.activo; });
+    var yoId = APP.yo ? APP.yo.id : '';
+    llenarCatalogos();
+    if (yoId) { APP.yo = usuarioPorId(yoId); $('#selYo').value = yoId; }
+    pintarUsuarios();
+    cargarFormularioUsuario(null);
+    $('#estadoDirectorio').textContent = '';
+    aviso('Directorio actualizado.');
+  }).catch(function (e) {
+    $('#estadoDirectorio').textContent = '';
+    aviso('No se pudo guardar: ' + e.message, 'error');
+  });
+}
+</script>
