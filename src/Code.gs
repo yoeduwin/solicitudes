@@ -17,32 +17,35 @@ function doGet() {
 
 /** Permite componer index.html con styles.html y scripts.html. */
 function include(nombre) {
-  return HtmlService.createHtmlOutputFromFile(nombre).getContent();
+  var contenido = HtmlService.createHtmlOutputFromFile(nombre).getContent();
+  // La capa de Employee Experience se carga después del frontend base para poder
+  // enriquecerlo sin duplicar ni reescribir todo scripts.html.
+  if (nombre === 'scripts') {
+    contenido += '\n' + HtmlService.createHtmlOutputFromFile('experience').getContent();
+  }
+  return contenido;
 }
 
 /* ------------------------------------------------------------------ */
 /* Carga inicial                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Catálogos + todas las solicitudes en una sola llamada. */
+/** Catálogos + solicitudes visibles para la sesión actual en una sola llamada. */
 function apiInicio() {
   return ejecutar_('apiInicio', function () {
-    // La Web App puede admitir cualquier cuenta Google autenticada para no depender
-    // de un único dominio. Por eso toda lectura de datos exige además que el correo
-    // de la sesión exista y esté activo en el directorio interno.
     var yo = exigirUsuarioActual_();
     var cfg = leerConfig_();
     return {
       nombre_sistema: texto_(cfg.nombre_sistema) || 'Solicitudes Internas',
       usuarios: listarUsuarios_(false),
       categorias: categorias_(),
-      estados: ESTADOS,
+      estados: ESTADOS.concat(['En espera']),
       estados_admin: ESTADOS_ADMIN,
       prioridades: PRIORIDADES,
       max_archivos: limiteArchivos_(),
       max_mb_archivo: Math.round(limiteBytesArchivo_() / 1048576),
       hoy: hoyISO_(),
-      solicitudes: listarSolicitudes_(),
+      solicitudes: listarSolicitudesExperiencia_(yo),
       sesion: { correo: yo.correo, usuario: yo }
     };
   });
@@ -50,16 +53,16 @@ function apiInicio() {
 
 function apiListarSolicitudes() {
   return ejecutar_('apiListarSolicitudes', function () {
-    exigirUsuarioActual_();
-    return { solicitudes: listarSolicitudes_(), hoy: hoyISO_() };
+    var yo = exigirUsuarioActual_();
+    return { solicitudes: listarSolicitudesExperiencia_(yo), hoy: hoyISO_() };
   });
 }
 
 function apiDetalle(id) {
   return ejecutar_('apiDetalle', function () {
-    exigirUsuarioActual_();
+    var yo = exigirUsuarioActual_();
     if (!texto_(id)) throw new Error('Falta el identificador de la solicitud.');
-    return detalleSolicitud_(texto_(id));
+    return detalleSolicitudExperiencia_(texto_(id), yo);
   });
 }
 
@@ -68,11 +71,8 @@ function apiDetalle(id) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Agrega comentarios, historial y adjuntos al resultado de una operación.
- *
- * Antes el frontend hacía una segunda llamada (apiDetalle) para repintar la
- * pantalla después de cada cambio. Enviando todo de una vez se elimina ese
- * viaje de ida y vuelta, que era la mitad de la espera percibida.
+ * Compatibilidad con llamadas existentes: mantiene el detalle completo en la
+ * respuesta para que el frontend no haga una segunda llamada.
  */
 function conDetalle_(resultado) {
   var id = resultado && resultado.solicitud ? resultado.solicitud.id : null;
@@ -86,21 +86,24 @@ function conDetalle_(resultado) {
 function apiCrearSolicitud(payload) {
   return ejecutar_('apiCrearSolicitud', function () {
     var yo = exigirUsuarioActual_();
-    return crearSolicitud_(payload, yo);
+    return crearSolicitudExperiencia_(payload, yo);
   });
 }
 
 function apiCambiarEstado(id, estado, motivo) {
   return ejecutar_('apiCambiarEstado', function () {
     var yo = exigirUsuarioActual_();
-    return conDetalle_(cambiarEstado_(texto_(id), estado, yo.nombre, yo.admin, motivo));
+    exigirAccesoSolicitudExperiencia_(texto_(id), yo);
+    return conDetalleExperiencia_(
+      cambiarEstadoExperiencia_(texto_(id), estado, yo, motivo), yo);
   });
 }
 
 function apiAgregarComentario(id, payload) {
   return ejecutar_('apiAgregarComentario', function () {
     var yo = exigirUsuarioActual_();
-    return conDetalle_(agregarComentario_(texto_(id), yo, payload));
+    exigirAccesoSolicitudExperiencia_(texto_(id), yo);
+    return conDetalleExperiencia_(agregarComentario_(texto_(id), yo, payload), yo);
   });
 }
 
@@ -109,14 +112,14 @@ function apiAgregarComentario(id, payload) {
 function apiReasignar(id, responsableId) {
   return ejecutar_('apiReasignar', function () {
     var yo = exigirAdmin_();
-    return conDetalle_(reasignar_(texto_(id), responsableId, yo.nombre));
+    return conDetalleExperiencia_(reasignar_(texto_(id), responsableId, yo.nombre), yo);
   });
 }
 
 function apiActualizarSolicitud(id, cambios) {
   return ejecutar_('apiActualizarSolicitud', function () {
     var yo = exigirAdmin_();
-    return conDetalle_(actualizarSolicitud_(texto_(id), cambios, yo.nombre));
+    return conDetalleExperiencia_(actualizarSolicitud_(texto_(id), cambios, yo.nombre), yo);
   });
 }
 
