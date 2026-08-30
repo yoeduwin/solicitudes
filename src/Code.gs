@@ -80,8 +80,8 @@ function conDetalle_(resultado) {
 
 function apiCrearSolicitud(payload) {
   return ejecutar_('apiCrearSolicitud', function () {
-    exigirUsuarioActual_();
-    return crearSolicitud_(payload);
+    var yo = exigirUsuarioActual_();
+    return crearSolicitud_(payload, yo);
   });
 }
 
