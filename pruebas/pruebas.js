@@ -4,14 +4,6 @@
  */
 
 function assert(c,m){ if(!c) throw new Error('FALLO: '+m); console.log('  ok · '+m); }
-console.log('0. asignar hoja a un proyecto independiente');
-try { configurarHoja(''); throw new Error('x'); }
-catch (e) { assert(/ID o la URL/.test(e.message), 'exige el ID de la hoja'); }
-try { configurarHoja('1noExiste'); throw new Error('x'); }
-catch (e) { assert(/No such spreadsheet/.test(e.message), 'rechaza un ID inválido'); }
-assert(/hoja-buena/.test(configurarHoja('https://docs.google.com/spreadsheets/d/hoja-buena/edit#gid=0')),
-  'extrae el ID desde la URL completa');
-
 console.log('1. instalar()'); instalar();
 assert(listarUsuarios_(false).length===5,'directorio con 5 personas');
 guardarUsuario_({nombre:'Jimmy Ayala',correo:'jimmy@ea.mx',area:'Atención a Clientes',id:listarUsuarios_(true).filter(u=>u.nombre==='Jimmy Ayala')[0].id});

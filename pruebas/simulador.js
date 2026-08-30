@@ -43,14 +43,3 @@ const folder={ getId:()=>'folder-1', getFoldersByName:()=>({hasNext:()=>false,ne
   createFolder:()=>folder,
   createFile:b=>({getId:()=>'file-'+(++FILES), getName:()=>b.n, getUrl:()=>'https://drive/'+b.n}) };
 global.DriveApp={ createFolder:()=>folder, getFolderById:()=>folder };
-
-// PropertiesService: memoria simple para la asignación de la hoja.
-let PROPS = {};
-global.PropertiesService = { getScriptProperties: () => ({
-  getProperty: k => (k in PROPS ? PROPS[k] : null),
-  setProperty: (k, v) => { PROPS[k] = String(v); }
-}) };
-global.SpreadsheetApp.openById = id => {
-  if (id !== 'hoja-buena') throw new Error('No such spreadsheet');
-  return Object.assign(SpreadsheetApp.getActiveSpreadsheet(), { getName: () => 'Solicitudes Internas' });
-};

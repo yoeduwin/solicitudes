@@ -61,68 +61,12 @@ var CONFIG_DEFAULT = [
 /* Acceso al Spreadsheet                                               */
 /* ------------------------------------------------------------------ */
 
-/** Clave donde se guarda el ID del Sheet cuando el proyecto es independiente. */
-var CLAVE_HOJA = 'SPREADSHEET_ID';
-
-/** Memoria del libro dentro de una misma ejecución, para no reabrirlo en cada lectura. */
-var LIBRO_ = null;
-
-/**
- * Devuelve el Spreadsheet que sirve de base de datos.
- *
- * Funciona en los dos escenarios:
- *  a) Proyecto vinculado al Sheet (Extensiones → Apps Script): se usa el libro activo.
- *  b) Proyecto independiente (script.google.com): se abre por ID, guardado previamente
- *     con configurarHoja('<ID o URL>').
- */
 function libro_() {
-  if (LIBRO_) return LIBRO_;
-
-  var id = PropertiesService.getScriptProperties().getProperty(CLAVE_HOJA);
-  if (id) {
-    try {
-      LIBRO_ = SpreadsheetApp.openById(id);
-      return LIBRO_;
-    } catch (e) {
-      throw new Error('No se pudo abrir la hoja con ID "' + id +
-        '". Verifique el ID y sus permisos, o vuelva a ejecutar configurarHoja().');
-    }
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('El script no está vinculado a un Google Sheet. Cópielo dentro del Sheet (Extensiones → Apps Script).');
   }
-
-  LIBRO_ = SpreadsheetApp.getActiveSpreadsheet();
-  if (!LIBRO_) {
-    throw new Error('El script no tiene una hoja asignada. Ejecute una vez la función ' +
-      'configurarHoja("<ID o URL del Google Sheet>"), o copie el proyecto dentro del ' +
-      'Sheet desde Extensiones → Apps Script.');
-  }
-  return LIBRO_;
-}
-
-/**
- * EJECUTAR UNA VEZ si el proyecto es independiente (no nació dentro del Sheet).
- * Acepta el ID o la URL completa de la hoja y lo guarda en las propiedades del script.
- *
- *   configurarHoja('https://docs.google.com/spreadsheets/d/1AbC.../edit')
- *   configurarHoja('1AbC...')
- *
- * Después ejecute instalar().
- */
-function configurarHoja(idOUrl) {
-  var valor = texto_(idOUrl);
-  if (!valor) {
-    throw new Error('Indique el ID o la URL del Google Sheet: configurarHoja("1AbC...").');
-  }
-  var m = valor.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  var id = m ? m[1] : valor;
-
-  var ss = SpreadsheetApp.openById(id); // falla aquí si el ID o los permisos no sirven
-  PropertiesService.getScriptProperties().setProperty(CLAVE_HOJA, id);
-  LIBRO_ = ss;
-
-  var msg = 'Hoja asignada: "' + ss.getName() + '" (' + id + ').\n' +
-    'Siguiente paso: ejecute la función instalar().';
-  console.log(msg);
-  return msg;
+  return ss;
 }
 
 /**

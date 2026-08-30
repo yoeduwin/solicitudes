@@ -22,10 +22,6 @@ Crea una hoja de cálculo nueva en Drive, por ejemplo
 **"Solicitudes Internas — Ejecutiva Ambiental"**. No hace falta crear pestañas:
 el script las genera solo.
 
-Lo más cómodo es entrar luego desde **Extensiones → Apps Script** en esa misma hoja: el
-proyecto queda vinculado y te ahorras el paso 3. Si ya creaste el proyecto por separado
-en `script.google.com`, no pasa nada — el paso 3 resuelve el vínculo.
-
 ### 2. Copiar el código a Apps Script
 
 Desde el Sheet: **Extensiones → Apps Script**. Se abre un proyecto vinculado.
@@ -51,33 +47,7 @@ appsscript.json"* y pega el contenido de `src/appsscript.json`.
 > Si usas [clasp](https://github.com/google/clasp), basta con `clasp clone <scriptId>`
 > dentro de `src/` y `clasp push`.
 
-### 3. Asignar la hoja (solo si el proyecto es independiente)
-
-Hay dos formas de tener el proyecto, y solo una necesita este paso:
-
-- **Proyecto vinculado** — lo creaste desde **Extensiones → Apps Script** dentro del Sheet.
-  No hagas nada: el código toma la hoja que lo contiene. **Salta al paso 4.**
-- **Proyecto independiente** — lo creaste desde `script.google.com`. Google **no permite
-  vincularlo a un Sheet después**; en su lugar se le indica qué hoja usar:
-
-  1. Abre tu Google Sheet y copia su URL completa.
-  2. En el editor de Apps Script, selecciona la función **`configurarHoja`**.
-  3. Ejecútala una vez pasándole la URL o el ID. Como el editor no permite escribir
-     argumentos, agrega temporalmente una función así y ejecútala:
-
-     ```javascript
-     function asignarMiHoja() {
-       configurarHoja('https://docs.google.com/spreadsheets/d/PEGA_AQUI_EL_ID/edit');
-     }
-     ```
-
-     Acepta la URL completa o solo el ID. Guarda el valor en las propiedades del script,
-     así que **se hace una sola vez**; después puedes borrar esa función.
-
-> Si no quieres lidiar con esto, la alternativa es empezar de cero: crea el Sheet, entra por
-> **Extensiones → Apps Script** y pega ahí el código. Queda vinculado desde el inicio.
-
-### 4. Crear las hojas automáticamente
+### 3. Crear las hojas automáticamente
 
 En el editor, selecciona la función **`instalar`** y pulsa **Ejecutar**.
 Google pedirá autorización la primera vez (acepta los permisos de Sheets, Drive y Gmail).
@@ -92,7 +62,7 @@ Google pedirá autorización la primera vez (acepta los permisos de Sheets, Driv
 
 Es seguro volver a ejecutarla: no borra ni duplica datos existentes.
 
-### 5. Configurar la carpeta de Drive
+### 4. Configurar la carpeta de Drive
 
 `instalar()` crea la carpeta **"Solicitudes Internas - Adjuntos"** y guarda su ID en
 `CONFIG → carpeta_drive_id`.
@@ -105,7 +75,7 @@ copia su ID desde la URL de Drive
 Los archivos **no** se hacen públicos: heredan los permisos de la carpeta.
 Comparte esa carpeta con el personal que deba abrir los adjuntos.
 
-### 6. Agregar las personas y sus correos
+### 5. Agregar las personas y sus correos
 
 Dos caminos, equivalentes:
 
@@ -116,7 +86,7 @@ Dos caminos, equivalentes:
 Sin correo, la persona aparece en los catálogos pero no recibe notificaciones
 (el sistema lo avisa en pantalla y lo registra en el historial).
 
-### 7. Crear el Trigger diario
+### 6. Crear el Trigger diario
 
 En el editor, ejecuta una vez la función **`crearTriggerDiario`**. Programa
 `enviarRecordatoriosDiarios` alrededor de las 8:00 AM.
@@ -124,7 +94,7 @@ En el editor, ejecuta una vez la función **`crearTriggerDiario`**. Programa
 También puedes hacerlo a mano: **Activadores → Añadir activador** →
 función `enviarRecordatoriosDiarios`, origen *Basado en tiempo*, *Temporizador diario*.
 
-### 8. Desplegar la Web App
+### 7. Desplegar la Web App
 
 **Implementar → Nueva implementación → Aplicación web**:
 
@@ -259,7 +229,7 @@ no pierde la solicitud.
 src/
   appsscript.json     Manifiesto (zona horaria, scopes, Web App)
   Code.gs             doGet + API expuesta a google.script.run
-  Utils.gs            Acceso a Sheets (configurarHoja), fechas, validación, LockService
+  Utils.gs            Acceso a Sheets, fechas, validación, LockService
   Config.gs           Hoja CONFIG, instalar(), crearTriggerDiario()
   Users.gs            Directorio de personas
   Tickets.gs          Solicitudes, estados, comentarios, historial
