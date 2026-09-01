@@ -103,13 +103,40 @@ function guardarUsuario_(payload) {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Correo de la cuenta de Google que abrió la Web App.
+ *
+ * getActiveUser() SOLO devuelve el correo cuando quien entra pertenece al mismo
+ * dominio de Workspace que el dueño del script. Con cuentas @gmail.com (que no
+ * tienen dominio) devuelve cadena vacía para todos salvo el propietario, así que
+ * el resto del equipo aparecía como "no identificado" aunque tuviera sesión
+ * iniciada en Chrome.
+ *
+ * getEffectiveUser() sí devuelve el correo real porque el despliegue corre como
+ * "usuario que accede" (appsscript.json: executeAs USER_ACCESSING) y cada persona
+ * autoriza el script con el permiso userinfo.email.
+ *
+ * OJO: si algún día se cambia el despliegue a "ejecutar como yo" (executeAs
+ * DEPLOYING_USER), getEffectiveUser() devolvería SIEMPRE al dueño y todo el equipo
+ * entraría suplantando esa identidad. El despliegue debe seguir siendo
+ * USER_ACCESSING.
+ */
+function correoSesion_() {
+  var correo = '';
+  try { correo = texto_(Session.getActiveUser().getEmail()); } catch (e) { correo = ''; }
+  if (!correo) {
+    try { correo = texto_(Session.getEffectiveUser().getEmail()); } catch (e2) { correo = ''; }
+  }
+  return correo.toLowerCase();
+}
+
+/**
  * Persona del directorio detrás de la sesión actual, cruzando el correo de la
  * cuenta de Google con la que se entró (la Web App ya restringe el acceso al
  * dominio) contra la columna "correo" del directorio. null si esa cuenta no
  * está registrada o está inactiva: no hay forma de elegir "ser" otra persona.
  */
 function usuarioActual_() {
-  var correo = texto_(Session.getActiveUser().getEmail()).toLowerCase();
+  var correo = correoSesion_();
   if (!correo) return null;
   var todos = cacheLeer_('usuarios', function () { return listarUsuarios_(true); });
   for (var i = 0; i < todos.length; i++) {
@@ -122,14 +149,14 @@ function usuarioActual_() {
 function exigirUsuarioActual_() {
   var u = usuarioActual_();
   if (!u) {
-    var correo = texto_(Session.getActiveUser().getEmail());
+    var correo = correoSesion_();
     // Sin correo no es que la persona no esté dada de alta: es que el navegador
     // abrió la app sin sesión de Google (link abierto desde WhatsApp, ventana de
     // incógnito o navegador embebido). Distinguirlo evita mandar a Administración
     // a dar de alta una cuenta que ya existe.
     if (!correo) {
-      throw new Error('No pudimos identificar tu cuenta de Google. Abre el enlace desde ' +
-        'Chrome con tu correo de trabajo ya iniciado (o toca "Cambiar de cuenta" y vuelve a entrar).');
+      throw new Error('No pudimos identificar tu cuenta de Google. Cierra esta pestaña, vuelve a ' +
+        'abrir el enlace y acepta los permisos que pide la aplicación la primera vez.');
     }
     throw new Error('Tu cuenta (' + correo + ') no está registrada en el directorio. ' +
       'Pide a Administración que te dé de alta con ese correo.');
