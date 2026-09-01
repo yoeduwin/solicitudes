@@ -155,7 +155,7 @@ function exigirUsuarioActual_() {
     // incógnito o navegador embebido). Distinguirlo evita mandar a Administración
     // a dar de alta una cuenta que ya existe.
     if (!correo) {
-      throw new Error('No pudimos identificar tu cuenta de Google. Cierra esta pestaña, vuelve a ' +
+      throw new Error('[v2] No pudimos identificar tu cuenta de Google. Cierra esta pestaña, vuelve a ' +
         'abrir el enlace y acepta los permisos que pide la aplicación la primera vez.');
     }
     throw new Error('Tu cuenta (' + correo + ') no está registrada en el directorio. ' +
