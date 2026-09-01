@@ -308,6 +308,23 @@ function ejecutar_(nombre, fn) {
     return ok_(fn());
   } catch (e) {
     console.error(nombre + ': ' + (e && e.stack ? e.stack : e));
-    return error_(e && e.message ? e.message : e);
+    return error_(mensajeUtil_(e && e.message ? e.message : e));
   }
+}
+
+/**
+ * Traduce los errores crudos de Google a algo accionable. El caso frecuente es
+ * el de permisos: la Web App corre con la identidad de quien la usa, así que si
+ * a esa persona no le compartieron el Sheet (o la carpeta de adjuntos) con
+ * permiso de edición, puede LEER las solicitudes pero cualquier escritura
+ * —comentar, cambiar estado, subir archivos— falla con un mensaje que parece
+ * un problema de la aplicación y en realidad es de compartición en Drive.
+ */
+function mensajeUtil_(mensaje) {
+  var m = String(mensaje || 'Error desconocido');
+  if (/no tienes permiso|do not have permission|permission to (access|perform)/i.test(m)) {
+    return 'Tu cuenta puede consultar pero no guardar cambios. Pide a Administración que te ' +
+      'comparta como EDITOR la hoja de cálculo del sistema y la carpeta de adjuntos en Drive.';
+  }
+  return m;
 }
