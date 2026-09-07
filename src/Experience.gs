@@ -281,6 +281,7 @@ function proponerFechaExperiencia_(id, fecha, motivo, yo) {
   fecha = aFechaISO_(fecha);
   motivo = texto_(motivo, 700);
   if (!fecha) throw new Error('Indica una fecha propuesta válida.');
+  exigirFechaNoPasada_(fecha, 'La fecha propuesta');
   if (!motivo) throw new Error('Explica brevemente por qué propones cambiar la fecha.');
 
   guardarMetaExperiencia_(id, {
@@ -305,6 +306,7 @@ function resolverFechaExperiencia_(id, aceptar, yo) {
 
   var propuesta = s.fecha_propuesta;
   if (aceptar) {
+    exigirFechaNoPasada_(propuesta, 'La fecha propuesta');
     conLock_(function () {
       var fila = filaSolicitud_(id);
       actualizarFila_(HOJAS.SOLICITUDES, fila._fila, { fecha_limite: propuesta, updated_at: ahoraISO_() });
