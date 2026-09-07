@@ -197,6 +197,10 @@ function crearSolicitud_(payload, creador) {
   if (!titulo) throw new Error('El título es obligatorio.');
   if (!descripcion) throw new Error('La descripción es obligatoria.');
   if (!fechaLimite) throw new Error('Indique la fecha límite.');
+  if (diasEntre_(hoyISO_(), fechaLimite) < 0) {
+    throw new Error('La fecha límite (' + fechaLegible_(fechaLimite) + ') ya pasó. ' +
+      'Verifique el año e indique una fecha de hoy en adelante.');
+  }
   if (!enLista_(prioridad, PRIORIDADES)) throw new Error('Prioridad no válida.');
   if (!categoria || !enLista_(categoria, categorias_())) throw new Error('Seleccione una categoría válida.');
 
@@ -427,6 +431,10 @@ function actualizarSolicitud_(id, cambios, actor) {
     if (cambios.fecha_limite !== undefined) {
       var f = aFechaISO_(cambios.fecha_limite);
       if (!f) throw new Error('Fecha límite no válida.');
+      if (f !== aFechaISO_(fila.fecha_limite) && diasEntre_(hoyISO_(), f) < 0) {
+        throw new Error('La nueva fecha límite (' + fechaLegible_(f) + ') ya pasó. ' +
+          'Verifique el año e indique una fecha de hoy en adelante.');
+      }
       set('fecha_limite', f, 'Fecha límite');
     }
     if (cambios.solicitante_id !== undefined && texto_(cambios.solicitante_id)) {

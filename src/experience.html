@@ -314,6 +314,12 @@
       archivos: APP.archivos
     };
 
+    if (APP.hoy && payload.fecha_limite && payload.fecha_limite < APP.hoy) {
+      aviso('La fecha límite ya pasó. Revisa el año e indica una fecha de hoy en adelante.', 'error');
+      f.fecha_limite.focus();
+      return;
+    }
+
     if (payload.prioridad === 'Urgente' && !payload.justificacion_urgente.trim()) {
       aviso('Explica brevemente por qué requiere atención urgente.', 'error');
       if (f.justificacion_urgente) f.justificacion_urgente.focus();

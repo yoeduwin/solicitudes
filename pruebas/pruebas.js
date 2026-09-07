@@ -15,13 +15,23 @@ try{guardarUsuario_({nombre:'Duplicado',correo:'JIMMY@EA.MX',area:'Prueba',activ
 catch(e){assert(/ya está registrado/i.test(e.message),'rechaza correo duplicado entre usuarios activos');}
 
 console.log('2. crearSolicitud_()');
+/** Antedata una solicitud escribiendo directo en la hoja (el alta ya no acepta fechas pasadas). */
+function antedatar(id,fecha){
+  const fila=filaSolicitud_(id);
+  actualizarFila_(HOJAS.SOLICITUDES,fila._fila,{fecha_limite:fecha});
+  return listarSolicitudes_().filter(s=>s.id===id)[0];
+}
 const r=crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Compra',
-  prioridad:'Alta',titulo:'Comprar EPP',descripcion:'Cascos y guantes',fecha_limite:'2020-01-01',
+  prioridad:'Alta',titulo:'Comprar EPP',descripcion:'Cascos y guantes',fecha_limite:'2030-01-01',
   archivos:[{nombre:'coti.pdf',tipo:'application/pdf',datos:Buffer.from('x'.repeat(100)).toString('base64')}]},eduwin);
 assert(/^SI-\d{6}-001$/.test(r.solicitud.folio),'folio '+r.solicitud.folio);
 assert(r.correo_enviado===true,'correo al responsable enviado');
 assert(r.adjuntos.length===1,'adjunto guardado');
-assert(r.solicitud.vencida===true,'fecha pasada => vencida');
+assert(r.solicitud.vencida===false,'fecha futura no es vencida');
+assert(antedatar(r.solicitud.id,'2020-01-01').vencida===true,'fecha pasada => vencida');
+try{crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Otro',prioridad:'Normal',
+  titulo:'Año mal tecleado',descripcion:'x',fecha_limite:'2020-01-01'},eduwin);throw new Error('x');}
+catch(e){assert(/ya pasó/i.test(e.message),'rechaza fecha límite en el pasado');}
 assert(r.solicitud.estado==='Pendiente','nace Pendiente');
 
 const r2=crearSolicitud_({solicitante_id:jimmy.id,responsable_id:eduwin.id,categoria:'Otro',
@@ -74,8 +84,9 @@ assert(ed.solicitud.prioridad==='Urgente' && ed.solicitud.cliente_proyecto==='Pl
 
 console.log('7. recordatorio diario');
 MAILS.length=0;
-crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Revisión',prioridad:'Normal',
-  titulo:'Atrasada',descripcion:'z',fecha_limite:'2019-05-05'},eduwin);
+const atrasada=crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Revisión',prioridad:'Normal',
+  titulo:'Atrasada',descripcion:'z',fecha_limite:'2030-01-01'},eduwin);
+antedatar(atrasada.solicitud.id,'2019-05-05');
 MAILS.length=0;
 enviarRecordatoriosDiarios();
 assert(MAILS.length===1 && MAILS[0].to==='jimmy@ea.mx','un solo correo consolidado por responsable');
