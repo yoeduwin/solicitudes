@@ -15,13 +15,31 @@ try{guardarUsuario_({nombre:'Duplicado',correo:'JIMMY@EA.MX',area:'Prueba',activ
 catch(e){assert(/ya está registrado/i.test(e.message),'rechaza correo duplicado entre usuarios activos');}
 
 console.log('2. crearSolicitud_()');
+/** Fecha futura relativa al reloj: las pruebas no caducan con el calendario. */
+function futura(dias){
+  const d=new Date(Date.UTC(+hoyISO_().slice(0,4),+hoyISO_().slice(5,7)-1,+hoyISO_().slice(8,10)));
+  d.setUTCDate(d.getUTCDate()+(dias||30));
+  return d.toISOString().slice(0,10);
+}
+/** Fecha pasada relativa al reloj. */
+function pasada(dias){ return futura(-(dias||365)); }
+/** Antedata una solicitud escribiendo directo en la hoja (el alta ya no acepta fechas pasadas). */
+function antedatar(id,fecha){
+  const fila=filaSolicitud_(id);
+  actualizarFila_(HOJAS.SOLICITUDES,fila._fila,{fecha_limite:fecha});
+  return listarSolicitudes_().filter(s=>s.id===id)[0];
+}
 const r=crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Compra',
-  prioridad:'Alta',titulo:'Comprar EPP',descripcion:'Cascos y guantes',fecha_limite:'2020-01-01',
+  prioridad:'Alta',titulo:'Comprar EPP',descripcion:'Cascos y guantes',fecha_limite:futura(),
   archivos:[{nombre:'coti.pdf',tipo:'application/pdf',datos:Buffer.from('x'.repeat(100)).toString('base64')}]},eduwin);
 assert(/^SI-\d{6}-001$/.test(r.solicitud.folio),'folio '+r.solicitud.folio);
 assert(r.correo_enviado===true,'correo al responsable enviado');
 assert(r.adjuntos.length===1,'adjunto guardado');
-assert(r.solicitud.vencida===true,'fecha pasada => vencida');
+assert(r.solicitud.vencida===false,'fecha futura no es vencida');
+assert(antedatar(r.solicitud.id,pasada()).vencida===true,'fecha pasada => vencida');
+try{crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Otro',prioridad:'Normal',
+  titulo:'Año mal tecleado',descripcion:'x',fecha_limite:pasada()},eduwin);throw new Error('x');}
+catch(e){assert(/ya pasó/i.test(e.message),'rechaza fecha límite en el pasado');}
 assert(r.solicitud.estado==='Pendiente','nace Pendiente');
 
 const r2=crearSolicitud_({solicitante_id:jimmy.id,responsable_id:eduwin.id,categoria:'Otro',
@@ -32,9 +50,9 @@ assert(r2.solicitud.vencida===false,'vence hoy no es vencida');
 assert(historialDe_(r2.solicitud.id).some(h=>/a nombre de Jimmy Ayala/.test(h.detalle)),'historial distingue creador de solicitante');
 
 console.log('3. validaciones');
-try{crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Compra',titulo:'',descripcion:'y',fecha_limite:'2030-01-01'},eduwin);throw new Error('x');}
+try{crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Compra',titulo:'',descripcion:'y',fecha_limite:futura()},eduwin);throw new Error('x');}
 catch(e){assert(/título/i.test(e.message),'exige título');}
-try{crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Inventada',titulo:'a',descripcion:'y',fecha_limite:'2030-01-01'},eduwin);throw new Error('x');}
+try{crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Inventada',titulo:'a',descripcion:'y',fecha_limite:futura()},eduwin);throw new Error('x');}
 catch(e){assert(/categoría/i.test(e.message),'rechaza categoría inválida');}
 try{validarArchivos_([{nombre:'a.exe',tipo:'application/x-msdownload',datos:'AAA'}]);throw new Error('x');}
 catch(e){assert(/formato permitido/.test(e.message),'rechaza tipo no permitido');}
@@ -74,8 +92,9 @@ assert(ed.solicitud.prioridad==='Urgente' && ed.solicitud.cliente_proyecto==='Pl
 
 console.log('7. recordatorio diario');
 MAILS.length=0;
-crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Revisión',prioridad:'Normal',
-  titulo:'Atrasada',descripcion:'z',fecha_limite:'2019-05-05'},eduwin);
+const atrasada=crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Revisión',prioridad:'Normal',
+  titulo:'Atrasada',descripcion:'z',fecha_limite:futura()},eduwin);
+antedatar(atrasada.solicitud.id,pasada(400));
 MAILS.length=0;
 enviarRecordatoriosDiarios();
 assert(MAILS.length===1 && MAILS[0].to==='jimmy@ea.mx','un solo correo consolidado por responsable');
@@ -84,7 +103,7 @@ console.log('8. fallo de correo no pierde la solicitud');
 const original=MailApp.sendEmail;
 MailApp.sendEmail=()=>{throw new Error('cuota agotada');};
 const rf=crearSolicitud_({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Otro',prioridad:'Normal',
-  titulo:'Con correo roto',descripcion:'w',fecha_limite:'2030-01-01'},eduwin);
+  titulo:'Con correo roto',descripcion:'w',fecha_limite:futura()},eduwin);
 MailApp.sendEmail=original;
 assert(rf.correo_enviado===false && !!rf.solicitud.folio,'solicitud guardada pese al fallo');
 assert(historialDe_(rf.solicitud.id).some(h=>h.accion==='Notificación fallida'),'fallo registrado en historial');
@@ -101,7 +120,7 @@ cacheOlvidar_();
 assert(apiInicio().ok===false,'cuenta no registrada no puede leer el tablero');
 assert(apiListarSolicitudes().ok===false,'cuenta no registrada no puede listar solicitudes');
 assert(apiDetalle(r.solicitud.id).ok===false,'cuenta no registrada no puede abrir detalles');
-assert(apiCrearSolicitud({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Otro',prioridad:'Normal',titulo:'No debe',descripcion:'x',fecha_limite:'2030-01-01'}).ok===false,'cuenta no registrada no puede crear');
+assert(apiCrearSolicitud({solicitante_id:eduwin.id,responsable_id:jimmy.id,categoria:'Otro',prioridad:'Normal',titulo:'No debe',descripcion:'x',fecha_limite:futura()}).ok===false,'cuenta no registrada no puede crear');
 __setActiveEmail('eduwin@ea.mx');
 cacheOlvidar_();
 assert(apiDetalle('inexistente').ok===false,'error controlado, no excepción');

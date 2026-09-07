@@ -141,6 +141,13 @@ function exigeIdentidad() {
   return true;
 }
 
+/** Impide capturar fechas límite anteriores a hoy (año mal tecleado). */
+function aplicarMinimoFecha() {
+  if (!APP.hoy) return;
+  var campos = document.querySelectorAll('input[name="fecha_limite"]');
+  for (var i = 0; i < campos.length; i++) campos[i].min = APP.hoy;
+}
+
 /* ------------------------------------------------------------------ */
 /* Arranque                                                            */
 /* ------------------------------------------------------------------ */
@@ -171,6 +178,7 @@ function cargarInicio() {
     APP.admin = !!(APP.yo && APP.yo.admin);
 
     llenarCatalogos();
+    aplicarMinimoFecha();
     pintarIdentidad();
     marcarActivos();
     $('#cargando').classList.add('hidden');
@@ -609,6 +617,12 @@ function enviarNueva(ev) {
     fecha_limite: f.fecha_limite.value,
     archivos: APP.archivos
   };
+
+  if (APP.hoy && payload.fecha_limite && payload.fecha_limite < APP.hoy) {
+    aviso('La fecha límite ya pasó. Revisa el año e indica una fecha de hoy en adelante.', 'error');
+    f.fecha_limite.focus();
+    return;
+  }
 
   boton.disabled = true;
   $('#estadoNueva').textContent = 'Guardando…';

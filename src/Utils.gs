@@ -238,6 +238,16 @@ function aFechaISO_(valor) {
   return '';
 }
 
+/** Lanza si la fecha 'yyyy-MM-dd' es anterior a hoy (típico año mal tecleado). */
+function exigirFechaNoPasada_(iso, etiqueta) {
+  if (!iso) return iso;
+  if (diasEntre_(hoyISO_(), iso) < 0) {
+    throw new Error((etiqueta || 'La fecha') + ' (' + fechaLegible_(iso) + ') ya pasó. ' +
+      'Verifique el año e indique una fecha de hoy en adelante.');
+  }
+  return iso;
+}
+
 function pad2_(n) { return ('0' + n).slice(-2); }
 function pad3_(n) { return ('00' + n).slice(-3); }
 

@@ -314,6 +314,12 @@
       archivos: APP.archivos
     };
 
+    if (APP.hoy && payload.fecha_limite && payload.fecha_limite < APP.hoy) {
+      aviso('La fecha límite ya pasó. Revisa el año e indica una fecha de hoy en adelante.', 'error');
+      f.fecha_limite.focus();
+      return;
+    }
+
     if (payload.prioridad === 'Urgente' && !payload.justificacion_urgente.trim()) {
       aviso('Explica brevemente por qué requiere atención urgente.', 'error');
       if (f.justificacion_urgente) f.justificacion_urgente.focus();
@@ -459,7 +465,8 @@
       }
       if (soyResponsable(s) || APP.admin) {
         html += '<div class="ex-linea pt-2 border-t border-slate-100"><div class="text-xs font-semibold text-slate-500">Proponer una fecha viable</div>' +
-          '<div class="ex-linea-2"><input id="exFechaPropuesta" type="date" class="entrada mt-0">' +
+          '<div class="ex-linea-2"><input id="exFechaPropuesta" type="date" class="entrada mt-0"' +
+            (APP.hoy ? ' min="' + esc(APP.hoy) + '"' : '') + '>' +
           '<input id="exMotivoFecha" class="entrada mt-0" placeholder="Por qué necesitas ajustar la fecha"></div>' +
           '<div><button id="exProponerFecha" type="button" class="btn-secundario">Proponer nueva fecha</button></div></div>';
       }
@@ -491,6 +498,10 @@
       var fecha = $('#exFechaPropuesta').value;
       var motivo = $('#exMotivoFecha').value.trim();
       if (!fecha || !motivo) { aviso('Indica la fecha propuesta y el motivo.', 'error'); return; }
+      if (APP.hoy && fecha < APP.hoy) {
+        aviso('La fecha propuesta ya pasó. Revisa el año e indica una fecha de hoy en adelante.', 'error');
+        return;
+      }
       ejecutarAccionEX('apiProponerFechaExperiencia', [id, fecha, motivo], 'Nueva fecha propuesta.', id);
     });
 

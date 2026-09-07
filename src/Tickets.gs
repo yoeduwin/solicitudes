@@ -197,6 +197,7 @@ function crearSolicitud_(payload, creador) {
   if (!titulo) throw new Error('El título es obligatorio.');
   if (!descripcion) throw new Error('La descripción es obligatoria.');
   if (!fechaLimite) throw new Error('Indique la fecha límite.');
+  exigirFechaNoPasada_(fechaLimite, 'La fecha límite');
   if (!enLista_(prioridad, PRIORIDADES)) throw new Error('Prioridad no válida.');
   if (!categoria || !enLista_(categoria, categorias_())) throw new Error('Seleccione una categoría válida.');
 
@@ -427,6 +428,7 @@ function actualizarSolicitud_(id, cambios, actor) {
     if (cambios.fecha_limite !== undefined) {
       var f = aFechaISO_(cambios.fecha_limite);
       if (!f) throw new Error('Fecha límite no válida.');
+      if (f !== aFechaISO_(fila.fecha_limite)) exigirFechaNoPasada_(f, 'La nueva fecha límite');
       set('fecha_limite', f, 'Fecha límite');
     }
     if (cambios.solicitante_id !== undefined && texto_(cambios.solicitante_id)) {
